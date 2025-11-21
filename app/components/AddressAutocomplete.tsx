@@ -20,7 +20,6 @@ export default function AddressAutocomplete({
 }) {
   const [items, setItems] = useState<Suggest[]>([]);
   const [loading, setLoading] = useState(false);
-  const [timer, setTimer] = useState<number | null>(null);
 
   // === FORMATEADOR EXACTO COMO EN EL MAPA ===
   function formatAddress(item: any) {
@@ -41,38 +40,31 @@ export default function AddressAutocomplete({
     );
   }
 
-  // === BÚSQUEDA CON DELAY ===
-useEffect(() => {
-  if (timer) {
-    if (typeof window !== "undefined") window.clearTimeout(timer);
-  }
-  if (!value || value.length < 3) {
-    setItems([]);
-    return;
-  }
+  // === BÚSQUEDA CON DELAY SOLO EN CLIENTE ===
+  useEffect(() => {
+    if (typeof window === "undefined") return; // evita SSR
 
-  setLoading(true);
+    if (!value || value.length < 3) {
+      setItems([]);
+      return;
+    }
 
-  const t = typeof window !== "undefined" ? window.setTimeout(() => {
-    fetch(
-      `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
-        value
-      )}&addressdetails=1&limit=6&accept-language=es`
-    )
-      .then((r) => r.json())
-      .then((json) => {
-        setItems(json || []);
-      })
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false));
-  }, 350) : null;
+    setLoading(true);
 
-  setTimer(t ?? null);
+    const t = setTimeout(() => {
+      fetch(
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
+          value
+        )}&addressdetails=1&limit=6&accept-language=es`
+      )
+        .then((r) => r.json())
+        .then((json) => setItems(json || []))
+        .catch(() => setItems([]))
+        .finally(() => setLoading(false));
+    }, 350);
 
-  return () => {
-    if (t && typeof window !== "undefined") window.clearTimeout(t);
-  };
-}, [value]);
+    return () => clearTimeout(t);
+  }, [value]);
 
   return (
     <div className="relative">
@@ -98,7 +90,7 @@ useEffect(() => {
                     lat: Number(it.lat),
                     lng: Number(it.lon),
                   });
-                  setItems([]); // cierra sugerencias
+                  setItems([]);
                 }}
               >
                 {clean}
