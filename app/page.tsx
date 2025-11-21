@@ -36,7 +36,7 @@ export default function Page() {
     const msg = `Hola, quiero reservar un viaje.\nRecogida: ${addressInput}\nFecha: ${date}\nHora: ${time}\nGracias.`;
     const waLink = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
     QRCode.toDataURL(waLink, { margin: 2, scale: 6 })
-      .then((url) => setQrSrc(url))
+      .then((url: string) => setQrSrc(url))
       .catch(() => setQrSrc(null));
   }, [addressInput, date, time]);
 
