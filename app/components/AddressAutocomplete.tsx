@@ -42,35 +42,37 @@ export default function AddressAutocomplete({
   }
 
   // === BÚSQUEDA CON DELAY ===
-  useEffect(() => {
-    if (timer) window.clearTimeout(timer);
-    if (!value || value.length < 3) {
-      setItems([]);
-      return;
-    }
+useEffect(() => {
+  if (timer) {
+    if (typeof window !== "undefined") window.clearTimeout(timer);
+  }
+  if (!value || value.length < 3) {
+    setItems([]);
+    return;
+  }
 
-    setLoading(true);
+  setLoading(true);
 
-    const t = window.setTimeout(() => {
-      fetch(
-        `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
-          value
-        )}&addressdetails=1&limit=6&accept-language=es`
-      )
-        .then((r) => r.json())
-        .then((json) => {
-          setItems(json || []);
-        })
-        .catch(() => setItems([]))
-        .finally(() => setLoading(false));
-    }, 350);
+  const t = typeof window !== "undefined" ? window.setTimeout(() => {
+    fetch(
+      `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
+        value
+      )}&addressdetails=1&limit=6&accept-language=es`
+    )
+      .then((r) => r.json())
+      .then((json) => {
+        setItems(json || []);
+      })
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, 350) : null;
 
-    setTimer(t);
+  setTimer(t ?? null);
 
-    return () => {
-      if (t) window.clearTimeout(t);
-    };
-  }, [value]);
+  return () => {
+    if (t && typeof window !== "undefined") window.clearTimeout(t);
+  };
+}, [value]);
 
   return (
     <div className="relative">
