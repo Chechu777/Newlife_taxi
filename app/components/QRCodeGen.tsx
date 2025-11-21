@@ -9,7 +9,7 @@ export default function QRCodeGen({ text }: { text: string }) {
   useEffect(() => {
     if (!text) return setSrc(null);
     QRCode.toDataURL(text, { margin: 2, scale: 6 })
-      .then((url) => setSrc(url))
+      .then((url: string) => setSrc(url))
       .catch(() => setSrc(null));
   }, [text]);
 
