@@ -1,4 +1,7 @@
 "use client";
+export const dynamic = "force-dynamic";
+export const ssr = false;
+export const runtime = "edge";
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
