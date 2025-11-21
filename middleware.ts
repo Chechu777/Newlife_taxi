@@ -1,10 +1,10 @@
-import type { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 export function middleware(req: NextRequest) {
   const ua = req.headers.get("user-agent") || "";
   const url = req.nextUrl;
 
-  const isMobile = /android|iphone|ipad|ipod|mobile/i.test(ua);
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);
 
   if (url.pathname === "/") {
     if (isMobile) {
@@ -17,6 +17,3 @@ export function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
-export const config = {
-  matcher: ["/"],
-};
