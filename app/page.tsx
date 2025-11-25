@@ -1,201 +1,483 @@
 "use client";
-export const dynamic = "force-dynamic";
-export const ssr = false;
-export const runtime = "edge";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import QRCode from "qrcode";
+
 import AddressAutocomplete from "./components/AddressAutocomplete";
-import MapComponent from "./components/MapComponent";
+import PhotoGallery from "./components/PhotoGallery";
+
+// MapComponent no-SSR
+const MapComponent = dynamic(() => import("./components/MapComponent"), { ssr: false });
 
 const WHATSAPP_NUMBER = "34640796659";
 
+type Loc = { lat: number; lng: number; address?: string };
+type Place = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  lat: number;
+  lng: number;
+  category: "airport" | "station";
+  icon: string; // path in /public/icons/
+  variants?: { key: string; label: string; lat: number; lng: number }[]; // salidas/llegadas
+};
+
 export default function Page() {
-  const [pickup, setPickup] = useState<{ lat?: number; lng?: number; address?: string } | null>(null);
+  // ===== Estados =====
+  const [pickup, setPickup] = useState<Loc | null>(null);
+  const [destination, setDestination] = useState<Loc | null>(null);
+
   const [addressInput, setAddressInput] = useState("");
+  const [destinationInput, setDestinationInput] = useState("");
+  const [extras, setExtras] = useState("");
+
   const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
+  const [time, setTime] = useState(""); // vacío por defecto
+
   const [qrSrc, setQrSrc] = useState<string | null>(null);
 
-  // Fecha y hora iniciales
+  const [selectedField, setSelectedField] = useState<"pickup" | "destination">("pickup");
+  const [showTariffs, setShowTariffs] = useState(false);
+
+  // ruta info
+  const [routeKm, setRouteKm] = useState<number | null>(null);
+  const [routeMin, setRouteMin] = useState<number | null>(null);
+
+  // refs para foco inputs
+  const pickupRef = useRef<HTMLInputElement | null>(null);
+  const destRef = useRef<HTMLInputElement | null>(null);
+
+  // categoria activa en el grid
+  const [activeCategory, setActiveCategory] = useState<"airport" | "station" | "all">("airport");
+
+  // desplegable lugares frecuentes abierto?
+  const [placesOpen, setPlacesOpen] = useState(true);
+
   useEffect(() => {
     const now = new Date();
     const yyyy = now.getFullYear();
     const mm = String(now.getMonth() + 1).padStart(2, "0");
     const dd = String(now.getDate()).padStart(2, "0");
     setDate(`${yyyy}-${mm}-${dd}`);
-
-    const hh = String(now.getHours()).padStart(2, "0");
-    const min = String(now.getMinutes()).padStart(2, "0");
-    setTime(`${hh}:${min}`);
   }, []);
 
-  // QR dinámico
-  useEffect(() => {
-    const msg = `Hola, quiero reservar un viaje.\nRecogida: ${addressInput}\nFecha: ${date}\nHora: ${time}\nGracias.`;
-    const waLink = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
-    QRCode.toDataURL(waLink, { margin: 2, scale: 6 })
-      .then((url: string) => setQrSrc(url))
-      .catch(() => setQrSrc(null));
-  }, [addressInput, date, time]);
+  // ===== PLACES / variants con coordenadas (usaste las que indicaste) =====
+  const frequentPlaces: Place[] = [
+    {
+      id: "t2",
+      title: "Aeropuerto Adolfo Suárez - T2",
+      subtitle: "Terminal 2",
+      category: "airport",
+      icon: "/icons/t2_salidas.png", // main icon (we'll choose variant coordinates)
+      lat: 40.468648,
+      lng: -3.569882,
+      variants: [
+        { key: "salidas", label: "Salidas", lat: 40.468648, lng: -3.569882 },
+        { key: "llegadas", label: "Llegadas", lat: 40.468956, lng: -3.569345 },
+      ],
+    },
+    {
+      id: "t4",
+      title: "Aeropuerto Adolfo Suárez - T4",
+      subtitle: "Terminal 4",
+      category: "airport",
+      icon: "/icons/t4_salidas.png",
+      lat: 40.492075,
+      lng: -3.593294,
+      variants: [
+        { key: "salidas", label: "Salidas", lat: 40.492075, lng: -3.593294 },
+        { key: "llegadas", label: "Llegadas", lat: 40.49104695168404, lng: -3.5936118164279676 },
+      ],
+    },
+    {
+      id: "atocha",
+      title: "Estación Atocha",
+      subtitle: "Trenes / Cercanías",
+      category: "station",
+      icon: "/icons/atocha.png",
+      lat: 40.406987,
+      lng: -3.689682,
+      variants: [
+        { key: "salidas", label: "Salidas", lat: 40.406987, lng: -3.689682 },
+        { key: "llegadas", label: "Llegadas", lat: 40.406987, lng: -3.689682 },
+      ],
+    },
+    {
+      id: "chamartin",
+      title: "Estación Chamartín",
+      subtitle: "Trenes / Cercanías",
+      category: "station",
+      icon: "/icons/chamartin.png",
+      lat: 40.472219,
+      lng: -3.683699,
+      variants: [
+        { key: "salidas", label: "Salidas", lat: 40.472219, lng: -3.683699 },
+        { key: "llegadas", label: "Llegadas", lat: 40.472219, lng: -3.683699 },
+      ],
+    },
+  ];
 
-  function handlePick(p: { lat: number; lng: number; address?: string }) {
-    setPickup(p);
-    setAddressInput(p.address || `${p.lat}, ${p.lng}`);
+  // ===== Mensaje WhatsApp (incluye ruta si existe) =====
+  function buildMessage(address: string, destination: string, date: string, time: string, extras: string) {
+    const base =
+      `Buen día Pablo,\n` +
+      `Quiero reservar un viaje.\n\n` +
+      `Recogida: ${address || "-----"}\n` +
+      `Destino: ${destination || "-----"}\n` +
+      `Fecha: ${date || "-----"}\n` +
+      `Hora: ${time || "-----"}\n` +
+      `Extras: ${extras || "Ninguno"}`;
+
+    if (routeKm != null) {
+      return `${base}\n\nDistancia estimada: ${routeKm.toFixed(1)} km\nDuración aprox.: ${routeMin?.toFixed(0)} min`;
+    }
+    return base;
   }
 
+  const whatsappMessage = buildMessage(addressInput, destinationInput, date, time, extras);
+  const whatsappLink = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(whatsappMessage)}`;
+
+  useEffect(() => {
+    QRCode.toDataURL(whatsappLink, { margin: 2, scale: 6 })
+      .then((u) => setQrSrc(u))
+      .catch(() => setQrSrc(null));
+  }, [whatsappMessage]);
+
+  // ===== Map callbacks =====
+  function handleMapPick(type: "pickup" | "destination", loc: Loc) {
+    if (!loc) return;
+    if (type === "pickup") {
+      setPickup(loc);
+      setAddressInput(loc.address || `${loc.lat}, ${loc.lng}`);
+      setSelectedField("pickup");
+      setTimeout(() => pickupRef.current?.focus(), 50);
+    } else {
+      setDestination(loc);
+      setDestinationInput(loc.address || `${loc.lat}, ${loc.lng}`);
+      setSelectedField("destination");
+      setTimeout(() => destRef.current?.focus(), 50);
+    }
+  }
+
+  function handleMarkerDrag(which: "pickup" | "destination", loc: Loc) {
+    if (which === "pickup") {
+      setPickup(loc);
+      setAddressInput(loc.address || `${loc.lat}, ${loc.lng}`);
+    } else {
+      setDestination(loc);
+      setDestinationInput(loc.address || `${loc.lat}, ${loc.lng}`);
+    }
+  }
+
+  function handleRouteCalculated(km: number | null, minutes: number | null) {
+    setRouteKm(km);
+    setRouteMin(minutes);
+  }
+
+  // validación antes de abrir WhatsApp
+  function handleWhatsAppClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    if (!addressInput || !destinationInput || !time) {
+      e.preventDefault();
+      alert(
+        "📣🔔 Alerta NewLife Taxi !\n\n" +
+          "Por favor complete:\n" +
+          "Punto de recogida y/o Destino\n" +
+          "Verificar Fecha/Hora.."
+      );
+    }
+  }
+
+  // ===== Tap place helper (with variant) =====
+  function tapPlace(place: Place, variantKey?: string) {
+    // choose variant coords if provided
+    let lat = place.lat;
+    let lng = place.lng;
+    let label = place.title;
+    if (variantKey && place.variants) {
+      const v = place.variants.find((vv) => vv.key === variantKey);
+      if (v) {
+        lat = v.lat;
+        lng = v.lng;
+        label = `${place.title} — ${v.label}`;
+      }
+    }
+
+    const loc: Loc = { lat, lng, address: label };
+
+    if (selectedField === "pickup") {
+      setPickup(loc);
+      setAddressInput(loc.address || "");
+    } else {
+      setDestination(loc);
+      setDestinationInput(loc.address || "");
+    }
+
+    // ensure MapComponent will pick up state changes (it listens to pickupInitial/destinationInitial)
+    // small timeout to allow map to react and draw route if both points exist
+    setTimeout(() => {
+      // nothing else needed here; MapComponent will compute route when both states exist
+    }, 80);
+  }
+
+  // ===== UI =====
   return (
-    <div className="min-h-screen bg-slate-900 text-white pb-10">
-      {/* HEADER */}
-      <header className="max-w-6xl mx-auto flex items-center justify-between py-6 px-4">
-        <div className="flex items-center gap-4">
-          <div className="w-[110px] md:w-[140px]">
-            <Image src="/Logo.png" alt="NewLife Taxi" width={300} height={80} priority />
-          </div>
-
-          <div className="hidden md:block text-sm text-slate-300">
-            <div className="font-semibold">Movilidad premium 100% eléctrica</div>
-            <div className="text-xs">Rápido • Silencioso • Cero emisiones</div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <a
-            href={`https://wa.me/${WHATSAPP_NUMBER}`}
-            target="_blank"
-            rel="noreferrer"
-            className="bg-emerald-500 text-white px-4 py-2 rounded-full font-semibold hover:bg-emerald-600 text-sm"
-          >
-            WhatsApp
-          </a>
-          <a href="tel:+34640796659" className="px-3 py-2 border rounded text-sm text-white/90">
-            Llamar
-          </a>
-        </div>
+    <div className="min-h-screen bg-slate-900 text-white pb-24">
+      <header className="max-w-6xl mx-auto px-4 py-6 text-center">
+        <h1 className="text-3xl md:text-4xl font-bold">✨ NewLife Taxi</h1>
+        <p className="text-slate-300 mt-1">Traslados privados de lujo en Madrid</p>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 pb-12">
-        {/* FOTO + INFO */}
-        <section className="grid md:grid-cols-3 gap-6">
-          <div className="md:col-span-2">
-            <Image
-              src="/Taxi.jpg"
-              alt="Taxi"
-              width={1600}
-              height={900}
-              className="rounded-lg overflow-hidden shadow w-full h-auto"
-            />
-          </div>
-
-          {/* Info */}
-          <div className="space-y-4">
-            <div className="bg-white text-slate-900 p-4 rounded shadow-sm">
+      <main className="max-w-6xl mx-auto px-4 pb-16">
+        {/* TOP: Ventajas / Foto / Servicio */}
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+          <aside>
+            <div className="bg-[#e4eaf1] text-slate-900 p-4 rounded shadow-sm mb-4">
               <h3 className="font-semibold">Ventajas</h3>
               <ul className="mt-3 text-sm space-y-2 text-slate-700">
-                <li>🚗 100% eléctrico</li>
+                <li>🚗 Vehículo 100% eléctrico</li>
                 <li>👌 Interior amplio y confortable</li>
                 <li>📦 Gran maletero</li>
                 <li>🕒 Puntualidad y seriedad</li>
               </ul>
             </div>
+          </aside>
 
-            <div className="bg-amber-50 text-slate-900 p-4 rounded border shadow-sm">
-              <div className="font-semibold">Servicio especial</div>
-              <p className="text-sm mt-2">Traslados largos / Aeropuerto</p>
+          <div>
+            <div className="rounded-lg overflow-hidden shadow">
+              <Image src="/car1.jpg" alt="Taxi principal" width={1600} height={900} className="w-full h-auto object-cover" unoptimized />
+            </div>
 
-              <div className="font-semibold mt-2">HORARIO 🕒</div>
-              <p className="text-sm">De 8:00 AM a 20:00 PM</p>
+            <div className="mt-4 flex justify-center">
+              <PhotoGallery main="/car1.jpg" others={["/car2.jpg", "/car3.jpg", "/car4.jpg", "/car5.jpg"]} />
             </div>
           </div>
+
+          <aside>
+            <div className="bg-[#e4eaf1] text-slate-900 p-4 rounded border shadow-sm">
+              <div className="font-semibold">Servicio especial ⭐</div>
+              <div className="text-sm mt-2">Traslados largos y/o aeropuerto</div>
+              <div className="font-semibold mt-3">HORARIO 🕒</div>
+              <div className="text-sm mt-2">De 8:00h a 20:00h</div>
+            </div>
+          </aside>
         </section>
 
-        {/* DESCRIPCIÓN */}
-        <section className="mt-6 bg-white text-slate-900 p-6 rounded shadow-sm">
-          <h1 className="text-2xl md:text-3xl font-bold">
-            Descubre nuestro Servicio de Taxi de Lujo en Madrid
-          </h1>
-          <p className="mt-3 text-slate-700 leading-relaxed text-sm md:text-base">
-            ¿Buscas un taxi privado de alta gama? En <strong>NewLife Taxi</strong> ofrecemos un
-            servicio eléctrico, amplio y silencioso, con puntualidad y trato profesional.
-          </p>
+        {/* Descripción */}
+        <section className="mt-6 bg-[#e4eaf1] text-slate-900 p-6 rounded shadow-sm">
+          <h2 className="text-xl md:text-2xl font-bold">Tu taxi premium en Madrid</h2>
+          <p className="mt-3 text-slate-700 text-sm md:text-base">Servicio privado, eléctrico y silencioso. Puntualidad y confort para todos tus traslados.</p>
         </section>
 
-        {/* MAPA + FORM */}
-        <section className="mt-6 bg-white text-slate-900 p-6 rounded shadow-sm">
+        {/* MAPA + FORMULARIO */}
+        <section className="mt-6 bg-[#e4eaf1] text-slate-900 p-6 rounded shadow-sm">
           <h2 className="font-semibold mb-3 text-lg">Mapa y recogida</h2>
-          <p className="text-sm text-slate-600 mb-3">
-            Toca el mapa para elegir el punto de recogida.
-          </p>
+          <p className="text-sm text-slate-600 mb-3">Toca el mapa para elegir tu punto de recogida o escribe las direcciones abajo.</p>
 
-          <MapComponent onPick={handlePick} initialPick={pickup} />
+          {/* Map */}
+          <MapComponent
+            onPick={(type: "pickup" | "destination", loc: any) => handleMapPick(type, loc)}
+            onMarkerDrag={(which: "pickup" | "destination", loc: any) => handleMarkerDrag(which, loc)}
+            pickupInitial={pickup}
+            destinationInitial={destination}
+            selectedField={selectedField}
+            onRouteCalculated={(km: number | null, minutes: number | null) => handleRouteCalculated(km, minutes)}
+          />
 
-          <div className="mt-4 grid md:grid-cols-4 gap-3 items-end">
-            {/* Dirección */}
+          {/* Selector */}
+          <div className="flex gap-2 mt-6 mb-4 justify-center">
+            <button
+              onClick={() => { setSelectedField("pickup"); setTimeout(() => pickupRef.current?.focus(), 50); }}
+              className={`px-4 py-2 rounded-full text-sm font-semibold transition ${selectedField === "pickup" ? "bg-emerald-600 text-white shadow" : "bg-slate-300 text-slate-800"}`}
+            >
+              Punto de recogida
+            </button>
+
+            <button
+              onClick={() => { setSelectedField("destination"); setTimeout(() => destRef.current?.focus(), 50); }}
+              className={`px-4 py-2 rounded-full text-sm font-semibold transition ${selectedField === "destination" ? "bg-emerald-600 text-white shadow" : "bg-slate-300 text-slate-800"}`}
+            >
+              Destino
+            </button>
+          </div>
+
+          {/* ===== ULTRA-PREMIUM: Lugares frecuentes (desplegable grid) ===== */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between bg-slate-800/60 p-3 rounded-lg">
+              <div>
+                <div className="text-sm text-slate-300">Aeropuertos y estaciones</div>
+                <div className="text-lg font-semibold">Lugares rápidos</div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={activeCategory}
+                  onChange={(e) => setActiveCategory(e.target.value as any)}
+                  className="bg-white/10 text-slate-200 p-2 rounded"
+                >
+                  <option value="airport">Aeropuertos</option>
+                  <option value="station">Estaciones</option>
+                  <option value="all">Todos</option>
+                </select>
+
+                <button
+                  onClick={() => setPlacesOpen((v) => !v)}
+                  className="px-3 py-1 rounded-md bg-white/10 text-slate-200"
+                  aria-expanded={placesOpen}
+                >
+                  {placesOpen ? "▲" : "▼"}
+                </button>
+              </div>
+            </div>
+
+            <div className={`mt-3 overflow-hidden transition-all ${placesOpen ? "max-h-[1200px]" : "max-h-0"}`}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                {frequentPlaces
+                  .filter((p) => activeCategory === "all" ? true : p.category === activeCategory)
+                  .map((p) => (
+                    <div key={p.id} className="bg-white/95 text-slate-900 p-3 rounded-lg shadow flex flex-col">
+                      <div className="flex items-start gap-3">
+                        <div className="w-16 h-16 relative flex-shrink-0 rounded-lg overflow-hidden">
+                          <Image src={p.icon} alt={p.title} fill style={{ objectFit: "cover" }} unoptimized />
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-semibold">{p.title}</div>
+                          <div className="text-xs text-slate-600 mt-1">{p.subtitle}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        {p.variants?.map((v) => (
+                          <button
+                            key={v.key}
+                            onClick={() => tapPlace(p, v.key)}
+                            className="text-sm p-2 bg-emerald-50 text-emerald-700 rounded shadow-sm hover:bg-emerald-100"
+                          >
+                            {v.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="mt-3 text-xs text-slate-500">
+                        <span className="inline-block px-2 py-1 bg-emerald-50 text-emerald-700 rounded">One-tap</span>
+                        <span className="ml-2">Añadir como {selectedField === "pickup" ? "recogida" : "destino"}</span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+          {/* ===== END Lugares frecuentes ===== */}
+
+          {/* FORM */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end mt-6">
             <div className="md:col-span-2">
               <label className="block text-xs text-slate-500">Punto de recogida</label>
               <AddressAutocomplete
+                inputRef={pickupRef}
                 value={addressInput}
-                onChange={setAddressInput}
+                onChange={(v) => { setAddressInput(v); setSelectedField("pickup"); }}
+                onFocus={() => setSelectedField("pickup")}
                 onSelect={(s) => {
                   setAddressInput(s.address);
                   setPickup({ lat: s.lat, lng: s.lng, address: s.address });
+                  setSelectedField("pickup");
                 }}
               />
             </div>
 
-            {/* Fecha */}
-            <div>
-              <label className="block text-xs text-slate-500">Fecha</label>
-              <input
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                type="date"
-                className="mt-1 w-full border px-3 py-2 rounded text-slate-900"
+            <div className="md:col-span-2">
+              <label className="block text-xs text-slate-500">Destino</label>
+              <AddressAutocomplete
+                inputRef={destRef}
+                value={destinationInput}
+                onChange={(v) => { setDestinationInput(v); setSelectedField("destination"); }}
+                onFocus={() => setSelectedField("destination")}
+                onSelect={(s) => {
+                  setDestination({ lat: s.lat, lng: s.lng, address: s.address });
+                  setDestinationInput(s.address);
+                  setSelectedField("destination");
+                }}
               />
             </div>
 
-            {/* Hora */}
+            {/* Distancia / Duración justo debajo de destino */}
+            <div className="md:col-span-2">
+              {routeKm != null ? (
+                <div className="text-sm mt-1 text-slate-700 bg-white/60 p-2 rounded">
+                  <div><strong>Distancia estimada:</strong> {routeKm.toFixed(1)} km</div>
+                  <div><strong>Duración aprox.:</strong> {routeMin?.toFixed(0)} min (sin trafico)</div>
+                </div>
+              ) : (
+                <div className="text-sm mt-1 text-slate-700 bg-white/10 p-2 rounded">—</div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs text-slate-500">Fecha</label>
+              <input value={date} onChange={(e) => setDate(e.target.value)} type="date" className="mt-1 w-full border px-3 py-2 rounded text-slate-900" />
+            </div>
+
             <div>
               <label className="block text-xs text-slate-500">Hora</label>
-              <input
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                type="time"
-                className="mt-1 w-full border px-3 py-2 rounded text-slate-900"
-              />
+              <input value={time} onChange={(e) => setTime(e.target.value)} type="time" placeholder="Selecciona hora" className="mt-1 w-full border px-3 py-2 rounded text-slate-900" />
+            </div>
+
+            <div className="md:col-span-4">
+              <label className="block text-xs text-slate-500">Extras</label>
+              <input value={extras} onChange={(e) => setExtras(e.target.value)} type="text" placeholder="Ej: 2 maletas grandes y 2 pequeñas" className="mt-1 w-full border px-3 py-2 rounded text-slate-900" />
             </div>
           </div>
 
-          {/* Botón + QR */}
+          {/* Mensaje WhatsApp vivo (textarea grande) */}
+          <div className="mt-4">
+            <div className="text-lg font-bold text-emerald-700 mb-2">
+              💬 Vista previa del mensaje que enviarás por WhatsApp
+            </div>
+
+            <textarea
+              readOnly
+              value={whatsappMessage}
+              rows={10}
+              className="w-full p-3 rounded text-slate-900"
+            />
+          </div>
+
+          {/* RESERVAR + QR */}
           <div className="mt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <a
-              href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-                `Hola, quiero reservar un viaje. Recogida: ${addressInput} Fecha: ${date} Hora: ${time}`
-              )}`}
-              target="_blank"
-              rel="noreferrer"
-              className="bg-emerald-500 text-white px-5 py-3 rounded-full font-semibold hover:bg-emerald-600 text-center"
-            >
+            <a href={whatsappLink} onClick={handleWhatsAppClick} target="_blank" rel="noreferrer" className="bg-emerald-600 text-white px-5 py-3 rounded-full font-semibold hover:bg-emerald-700 text-center w-full md:w-auto">
               Reservar por WhatsApp
             </a>
 
             <div className="flex items-center gap-4 justify-center">
-              <div className="text-xs text-slate-500">QR para reservar:</div>
-              {qrSrc ? (
-                <img src={qrSrc} alt="QR" width={110} height={110} className="rounded shadow" />
-              ) : (
-                <div className="p-3 border rounded">Generando QR...</div>
-              )}
+              <div className="text-xs text-slate-500">QR con la reserva</div>
+              {qrSrc ? <img src={qrSrc} alt="QR" width={110} height={110} className="rounded shadow" /> : <div className="p-3 border rounded">Generando QR…</div>}
             </div>
           </div>
         </section>
+
+        {/* TARIFAS OFICIALES (acordeón) */}
+        <section className="mt-6">
+          <button className="w-full bg-[#e4eaf1] text-slate-900 p-3 rounded shadow-sm font-semibold flex justify-between items-center" onClick={() => setShowTariffs(!showTariffs)}>
+            Tarifas oficiales del taxi en Madrid
+            <span>{showTariffs ? "▲" : "▼"}</span>
+          </button>
+
+          {showTariffs && (
+            <div className="bg-[#e4eaf1] text-slate-900 mt-2 p-4 rounded shadow-sm text-sm leading-relaxed">
+              <p>Las tarifas están reguladas oficialmente por el Ayuntamiento de Madrid. Incluyen suplementos por aeropuerto, servicios nocturnos y festivos.</p>
+              <p className="mt-3">Para ver la información oficial completa, visita:</p>
+              <a href="https://www.madrid.es/portales/munimadrid/es/Inicio/El-Ayuntamiento/Moncloa-Aravaca/Taxi/?vgnextfmt=default&vgnextoid=4813dc0bffa41110VgnVCM1000000b205a0aRCRD&vgnextchannel=e9a3ca5d5fb96010VgnVCM100000dc0ca8c0RCRD&idCapitulo=11086871" target="_blank" rel="noreferrer" className="text-blue-700 underline">
+                Tarifas oficiales del taxi — Ayuntamiento de Madrid
+              </a>
+            </div>
+          )}
+        </section>
       </main>
 
-      {/* FOOTER */}
-      <footer className="max-w-6xl mx-auto px-4 py-8 text-sm text-slate-400 text-center">
-        © NewLife Taxi — Madrid • Tel: +34 640 796 659
-      </footer>
+      <footer className="max-w-6xl mx-auto px-4 py-8 text-sm text-slate-400 text-center">© NewLife Taxi — Madrid • Tel: +34 640 796 659</footer>
     </div>
   );
 }

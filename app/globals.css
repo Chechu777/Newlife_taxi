@@ -4,6 +4,21 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --bg-card: #e4eaf1;
+  --text-main: #0f172a;
+  --page-bg: #0f1725; /* not used but example */  
+}
+
+/* Dark mode variables */
+.dark {
+  --bg-card: #0f1724; /* oscuro mate */
+  --text-main: #cbd5e1;
+}
+
+/* apply a sensible default for cards */
+.bg-card {
+  background: var(--bg-card);
+  color: var(--text-main);
 }
 
 @theme inline {
