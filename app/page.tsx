@@ -1,142 +1,66 @@
 "use client";
+
+// 🔥 Forzar página totalmente dinámica en Vercel / Next.js 16
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
 export const revalidate = 0;
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import QRCode from "qrcode";
+import dynamic from "next/dynamic";
 
 import AddressAutocomplete from "./components/AddressAutocomplete";
 import PhotoGallery from "./components/PhotoGallery";
 
-// MapComponent no-SSR
+// Mapa sin SSR
 const MapComponent = dynamic(() => import("./components/MapComponent"), { ssr: false });
 
 const WHATSAPP_NUMBER = "34640796659";
 
-type Loc = { lat: number; lng: number; address?: string };
-type Place = {
-  id: string;
-  title: string;
-  subtitle?: string;
-  lat: number;
-  lng: number;
-  category: "airport" | "station";
-  icon: string; // path in /public/icons/
-  variants?: { key: string; label: string; lat: number; lng: number }[]; // salidas/llegadas
-};
-
 export default function Page() {
-  // ===== Estados =====
-  const [pickup, setPickup] = useState<Loc | null>(null);
-  const [destination, setDestination] = useState<Loc | null>(null);
+  // estados
+  const [pickup, setPickup] = useState<{ lat?: number; lng?: number; address?: string } | null>(null);
+  const [destination, setDestination] = useState<{ lat?: number; lng?: number; address?: string } | null>(null);
 
   const [addressInput, setAddressInput] = useState("");
   const [destinationInput, setDestinationInput] = useState("");
   const [extras, setExtras] = useState("");
 
   const [date, setDate] = useState("");
-  const [time, setTime] = useState(""); // vacío por defecto
+  const [time, setTime] = useState("");
 
   const [qrSrc, setQrSrc] = useState<string | null>(null);
 
   const [selectedField, setSelectedField] = useState<"pickup" | "destination">("pickup");
+
   const [showTariffs, setShowTariffs] = useState(false);
 
-  // ruta info
   const [routeKm, setRouteKm] = useState<number | null>(null);
   const [routeMin, setRouteMin] = useState<number | null>(null);
 
-  // refs para foco inputs
   const pickupRef = useRef<HTMLInputElement | null>(null);
   const destRef = useRef<HTMLInputElement | null>(null);
 
-  // categoria activa en el grid
-  const [activeCategory, setActiveCategory] = useState<"airport" | "station" | "all">("airport");
-
-  // desplegable lugares frecuentes abierto?
-  const [placesOpen, setPlacesOpen] = useState(true);
-
+  // fecha automática, hora vacía
   useEffect(() => {
     const now = new Date();
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, "0");
-    const dd = String(now.getDate()).padStart(2, "0");
-    setDate(`${yyyy}-${mm}-${dd}`);
+    setDate(now.toISOString().split("T")[0]);
   }, []);
 
-  // ===== PLACES / variants con coordenadas (usaste las que indicaste) =====
-  const frequentPlaces: Place[] = [
-    {
-      id: "t2",
-      title: "Aeropuerto Adolfo Suárez - T2",
-      subtitle: "Terminal 2",
-      category: "airport",
-      icon: "/icons/t2_salidas.png", // main icon (we'll choose variant coordinates)
-      lat: 40.468648,
-      lng: -3.569882,
-      variants: [
-        { key: "salidas", label: "Salidas", lat: 40.468648, lng: -3.569882 },
-        { key: "llegadas", label: "Llegadas", lat: 40.468956, lng: -3.569345 },
-      ],
-    },
-    {
-      id: "t4",
-      title: "Aeropuerto Adolfo Suárez - T4",
-      subtitle: "Terminal 4",
-      category: "airport",
-      icon: "/icons/t4_salidas.png",
-      lat: 40.492075,
-      lng: -3.593294,
-      variants: [
-        { key: "salidas", label: "Salidas", lat: 40.492075, lng: -3.593294 },
-        { key: "llegadas", label: "Llegadas", lat: 40.49104695168404, lng: -3.5936118164279676 },
-      ],
-    },
-    {
-      id: "atocha",
-      title: "Estación Atocha",
-      subtitle: "Trenes / Cercanías",
-      category: "station",
-      icon: "/icons/atocha.png",
-      lat: 40.406987,
-      lng: -3.689682,
-      variants: [
-        { key: "salidas", label: "Salidas", lat: 40.406987, lng: -3.689682 },
-        { key: "llegadas", label: "Llegadas", lat: 40.406987, lng: -3.689682 },
-      ],
-    },
-    {
-      id: "chamartin",
-      title: "Estación Chamartín",
-      subtitle: "Trenes / Cercanías",
-      category: "station",
-      icon: "/icons/chamartin.png",
-      lat: 40.472219,
-      lng: -3.683699,
-      variants: [
-        { key: "salidas", label: "Salidas", lat: 40.472219, lng: -3.683699 },
-        { key: "llegadas", label: "Llegadas", lat: 40.472219, lng: -3.683699 },
-      ],
-    },
-  ];
-
-  // ===== Mensaje WhatsApp (incluye ruta si existe) =====
-  function buildMessage(address: string, destination: string, date: string, time: string, extras: string) {
-    const base =
+  function buildMessage(address, destination, date, time, extras) {
+    return (
       `Buen día Pablo,\n` +
       `Quiero reservar un viaje.\n\n` +
       `Recogida: ${address || "-----"}\n` +
       `Destino: ${destination || "-----"}\n` +
       `Fecha: ${date || "-----"}\n` +
       `Hora: ${time || "-----"}\n` +
-      `Extras: ${extras || "Ninguno"}`;
-
-    if (routeKm != null) {
-      return `${base}\n\nDistancia estimada: ${routeKm.toFixed(1)} km\nDuración aprox.: ${routeMin?.toFixed(0)} min`;
-    }
-    return base;
+      `Extras: ${extras || "Ninguno"}\n\n` +
+      (routeKm != null
+        ? `Distancia estimada: ${routeKm.toFixed(1)} km\nDuración aprox.: ${routeMin?.toFixed(0)} min`
+        : "")
+    );
   }
 
   const whatsappMessage = buildMessage(addressInput, destinationInput, date, time, extras);
@@ -144,13 +68,13 @@ export default function Page() {
 
   useEffect(() => {
     QRCode.toDataURL(whatsappLink, { margin: 2, scale: 6 })
-      .then((u) => setQrSrc(u))
+      .then((url) => setQrSrc(url))
       .catch(() => setQrSrc(null));
   }, [whatsappMessage]);
 
-  // ===== Map callbacks =====
-  function handleMapPick(type: "pickup" | "destination", loc: Loc) {
+  function handleMapPick(type: "pickup" | "destination", loc: any) {
     if (!loc) return;
+
     if (type === "pickup") {
       setPickup(loc);
       setAddressInput(loc.address || `${loc.lat}, ${loc.lng}`);
@@ -164,7 +88,7 @@ export default function Page() {
     }
   }
 
-  function handleMarkerDrag(which: "pickup" | "destination", loc: Loc) {
+  function handleMarkerDrag(which, loc) {
     if (which === "pickup") {
       setPickup(loc);
       setAddressInput(loc.address || `${loc.lat}, ${loc.lng}`);
@@ -174,57 +98,23 @@ export default function Page() {
     }
   }
 
-  function handleRouteCalculated(km: number | null, minutes: number | null) {
+  function handleRouteCalculated(km, minutes) {
     setRouteKm(km);
     setRouteMin(minutes);
   }
 
-  // validación antes de abrir WhatsApp
-  function handleWhatsAppClick(e: React.MouseEvent<HTMLAnchorElement>) {
+  function handleWhatsAppClick(e) {
     if (!addressInput || !destinationInput || !time) {
       e.preventDefault();
       alert(
         "📣🔔 Alerta NewLife Taxi !\n\n" +
-          "Por favor complete:\n" +
-          "Punto de recogida y/o Destino\n" +
-          "Verificar Fecha/Hora.."
+        "Por favor complete:\n" +
+        "Punto de recogida y/o Destino\n" +
+        "Verificar Fecha/Hora.."
       );
     }
   }
 
-  // ===== Tap place helper (with variant) =====
-  function tapPlace(place: Place, variantKey?: string) {
-    // choose variant coords if provided
-    let lat = place.lat;
-    let lng = place.lng;
-    let label = place.title;
-    if (variantKey && place.variants) {
-      const v = place.variants.find((vv) => vv.key === variantKey);
-      if (v) {
-        lat = v.lat;
-        lng = v.lng;
-        label = `${place.title} — ${v.label}`;
-      }
-    }
-
-    const loc: Loc = { lat, lng, address: label };
-
-    if (selectedField === "pickup") {
-      setPickup(loc);
-      setAddressInput(loc.address || "");
-    } else {
-      setDestination(loc);
-      setDestinationInput(loc.address || "");
-    }
-
-    // ensure MapComponent will pick up state changes (it listens to pickupInitial/destinationInitial)
-    // small timeout to allow map to react and draw route if both points exist
-    setTimeout(() => {
-      // nothing else needed here; MapComponent will compute route when both states exist
-    }, 80);
-  }
-
-  // ===== UI =====
   return (
     <div className="min-h-screen bg-slate-900 text-white pb-24">
       <header className="max-w-6xl mx-auto px-4 py-6 text-center">
