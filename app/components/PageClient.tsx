@@ -206,12 +206,18 @@ export default function PageClient() {
           <p className="text-sm text-slate-600 mb-3">Toca el mapa para elegir tu punto de recogida o escribe las direcciones abajo.</p>
 
           <MapComponent
-            onPick={(type, loc) => handleMapPick(type, loc)}
-            onMarkerDrag={(which, loc) => handleMarkerDrag(which, loc)}
+            onPick={(type: "pickup" | "destination", loc: any) =>
+              handleMapPick(type, loc)
+            }
+            onMarkerDrag={(which: "pickup" | "destination", loc: any) =>
+              handleMarkerDrag(which, loc)
+            }
             pickupInitial={pickup}
             destinationInitial={destination}
             selectedField={selectedField}
-            onRouteCalculated={(km, minutes) => handleRouteCalculated(km, minutes)}
+            onRouteCalculated={(km: number | null, minutes: number | null) =>
+              handleRouteCalculated(km, minutes)
+            }
           />
 
           {/* Selector */}
