@@ -47,7 +47,14 @@ export default function PageClient() {
     return `https://maps.google.com/?q=${lat},${lng}`;
   }
 
-  function buildMessage(address, destination, date, time, extras) {
+  function buildMessage(
+    address: string | null,
+    destination: string | null,
+    date: string | null,
+    time: string | null,
+    extras: string | null
+  ) {
+
     return (
       `Buen día Pablo,\n` +
       `Quiero reservar un viaje.\n` +
