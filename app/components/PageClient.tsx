@@ -240,12 +240,25 @@ export default function PageClient() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end mt-6">
             <div className="md:col-span-2">
               <label className="block text-xs font-bold text-slate-700">Punto de recogida</label>
-              <AddressAutocomplete inputRef={pickupRef} value={addressInput} onChange={(v) => { setAddressInput(v); setSelectedField("pickup"); }} onFocus={() => setSelectedField("pickup")} onSelect={(s) => { setAddressInput(s.address); setPickup(s); setSelectedField("pickup"); }} />
+              <AddressAutocomplete
+                inputRef={pickupRef as React.RefObject<HTMLInputElement>}
+                value={addressInput}
+                onChange={(v) => { setAddressInput(v); setSelectedField("pickup"); }}
+                onFocus={() => setSelectedField("pickup")}
+                onSelect={(s) => { setAddressInput(s.address); setPickup(s); setSelectedField("pickup"); }}
+              />
             </div>
 
             <div className="md:col-span-2">
               <label className="block text-xs font-bold text-slate-700">Destino</label>
-              <AddressAutocomplete inputRef={destRef} value={destinationInput} onChange={(v) => { setDestinationInput(v); setSelectedField("destination"); }} onFocus={() => setSelectedField("destination")} onSelect={(s) => { setDestination(s); setDestinationInput(s.address); setSelectedField("destination"); }} />
+              <AddressAutocomplete
+                inputRef={destRef as React.RefObject<HTMLInputElement>}
+                value={destinationInput}
+                onChange={(v) => { setDestinationInput(v); setSelectedField("destination"); }}
+                onFocus={() => setSelectedField("destination")}
+                onSelect={(s) => { setDestination(s); setDestinationInput(s.address); setSelectedField("destination"); }}
+              />
+
             </div>
 
             <div className="md:col-span-2">
