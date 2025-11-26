@@ -1,136 +1,116 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
-type Suggest = {
-  display_name: string;
-  lat: string;
-  lon: string;
-  address: any;
-};
+import { useEffect, useState, useRef } from "react";
 
 export default function AddressAutocomplete({
-  inputRef,
   value,
   onChange,
   onSelect,
   onFocus,
-}: {
-  inputRef?: React.RefObject<HTMLInputElement | null>;
-  value: string;
-  onChange: (v: string) => void;
-  onSelect: (s: { address: string; lat?: number; lng?: number }) => void;
-  onFocus?: () => void;
+  inputRef
 }) {
-  const [items, setItems] = useState<Suggest[]>([]);
+  const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
-  const blurTimer = useRef<number | null>(null);
+  const [enabled, setEnabled] = useState(false);  // 🔥 Autosuggest OFF por defecto
+  const containerRef = useRef(null);
 
-  // === FORMATEADOR ===
-  function formatAddress(item: any) {
-    if (!item?.address) return item.display_name;
-
-    const a = item.address;
-    const street = a.road || a.pedestrian || a.cycleway || a.footway || "";
-    const house = a.house_number ? `, ${a.house_number}` : "";
-    const district = a.suburb || a.neighbourhood || "";
-    const city = a.city || a.town || a.village || "";
-    const postcode = a.postcode || "";
-
-    return `${street}${house}${district ? `, ${district}` : ""}${city ? `, ${city}` : ""}${postcode ? ` ${postcode}` : ""}`.replace(/,\s*,/g, ",");
-  }
-
-  // search effect
+  // Fetch suggestions
   useEffect(() => {
-    if (typeof window === "undefined") return; // avoid SSR
-
+    if (!enabled) return;             // ❗ Solo busca si el usuario activó
     if (!value || value.length < 3) {
-      setItems([]);
-      setOpen(false);
+      setSuggestions([]);
       return;
     }
 
-    setLoading(true);
-
-    const t = window.setTimeout(() => {
-      fetch(
-        `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
+    const controller = new AbortController();
+    const query = async () => {
+      setLoading(true);
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
           value
-        )}&addressdetails=1&limit=6&accept-language=es`
-      )
-        .then((r) => r.json())
-        .then((json) => {
-          setItems(json || []);
-          setOpen(true);
-        })
-        .catch(() => {
-          setItems([]);
-          setOpen(false);
-        })
-        .finally(() => setLoading(false));
-    }, 300);
+        )}&format=json&addressdetails=1&limit=5`;
+        const res = await fetch(url, { signal: controller.signal });
+        const data = await res.json();
 
-    return () => clearTimeout(t);
-  }, [value]);
+        setSuggestions(
+          data.map((item) => ({
+            address: item.display_name,
+            lat: item.lat,
+            lng: item.lon
+          }))
+        );
+      } catch {}
+      setLoading(false);
+    };
 
-  // handlers for blur to close dropdown safely
-  function handleBlur() {
-    // delay closing so a click on item registers
-    if (blurTimer.current) window.clearTimeout(blurTimer.current);
-    blurTimer.current = window.setTimeout(() => {
-      setOpen(false);
-    }, 150);
-  }
+    const t = setTimeout(query, 300);
+    return () => {
+      controller.abort();
+      clearTimeout(t);
+    };
+  }, [value, enabled]);
 
-  function handleFocus() {
-    if (onFocus) onFocus();
-    if (items.length > 0) setOpen(true);
-  }
+  // Ocultar sugerencias si pierde foco
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setEnabled(false);       // 🔥 Se desactiva el autosuggest
+        setSuggestions([]);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
-    <div className="relative" onBlur={handleBlur}>
-      <input
-        ref={(el) => {
-          if (inputRef && typeof inputRef === "object") (inputRef as any).current = el;
-        }}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={handleFocus}
-        placeholder="Selecciona en el mapa o escribe la dirección"
-        className="mt-1 w-full border px-3 py-2 rounded"
-      />
+    <div ref={containerRef} className="relative">
+      <div className="flex">
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={() => { if (onFocus) onFocus(); }}
+          className="w-full border px-3 py-2 rounded-l text-slate-900"
+          placeholder="Escribe una dirección"
+        />
 
-      {open && items.length > 0 && (
-        <ul className="absolute z-50 bg-white shadow rounded mt-1 w-full max-h-56 overflow-auto text-sm">
-          {items.map((it, i) => {
-            const clean = formatAddress(it);
-            return (
-              <li
-                key={i}
-                className="px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm"
-                onMouseDown={(ev) => {
-                  // prevent blur from hiding before click
-                  ev.preventDefault();
-                }}
-                onClick={() => {
-                  onSelect({
-                    address: clean,
-                    lat: Number(it.lat),
-                    lng: Number(it.lon),
-                  });
-                  setItems([]);
-                  setOpen(false);
-                }}
-              >
-                {clean}
-              </li>
-            );
-          })}
+        {/* 🔘 BOTON DE ACTIVAR AUTOSUGERENCIAS */}
+        <button
+          type="button"
+          onClick={() => setEnabled((v) => !v)}
+          className={`px-3 rounded-r text-white text-sm font-bold ${
+            enabled ? "bg-emerald-600" : "bg-slate-400"
+          }`}
+          title="Activar sugerencias"
+        >
+          🔍
+        </button>
+      </div>
+
+      {/* LISTA DE SUGERENCIAS */}
+      {enabled && suggestions.length > 0 && (
+        <ul className="absolute z-20 bg-white text-slate-900 border rounded mt-1 w-full shadow-lg max-h-56 overflow-auto">
+          {suggestions.map((s, i) => (
+            <li
+              key={i}
+              className="px-3 py-2 hover:bg-emerald-100 cursor-pointer text-sm"
+              onClick={() => {
+                onSelect(s);
+                setEnabled(false);
+                setSuggestions([]);
+              }}
+            >
+              {s.address}
+            </li>
+          ))}
         </ul>
       )}
 
-      {loading && <div className="text-xs mt-1 text-zinc-500">Buscando...</div>}
+      {enabled && loading && (
+        <div className="absolute z-20 bg-white text-slate-900 border rounded mt-1 w-full p-2 text-sm">
+          Buscando…
+        </div>
+      )}
     </div>
   );
 }
