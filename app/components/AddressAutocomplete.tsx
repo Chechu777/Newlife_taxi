@@ -2,6 +2,14 @@
 
 import { useEffect, useState, useRef } from "react";
 
+interface AddressAutocompleteProps {
+  value: string;
+  onChange: (value: string) => void;
+  onSelect: (data: { address: string; lat: number; lng: number }) => void;
+  onFocus?: () => void;
+  inputRef?: React.Ref<HTMLInputElement>;
+}
+
 export default function AddressAutocomplete({
   value,
   onChange,
