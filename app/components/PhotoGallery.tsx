@@ -65,7 +65,7 @@ export default function PhotoGallery({
         slides={slides.map(s => ({ src: s }))}
         plugins={[Fullscreen, Thumbnails]}
         render={{
-          closeButton: () => (
+          buttonClose: () => (
             <button
               aria-label="Cerrar"
               onClick={() => setLightboxOpen(false)}
@@ -76,7 +76,6 @@ export default function PhotoGallery({
           ),
         }}
       />
-
     </div>
   );
 }
