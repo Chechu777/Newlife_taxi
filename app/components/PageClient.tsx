@@ -76,7 +76,9 @@ export default function PageClient() {
 
   useEffect(() => {
     QRCode.toDataURL(whatsappLink, { margin: 2, scale: 6 })
-      .then((url) => setQrSrc(url))
+      .then((url: string) => {
+        setQrSrc(url);
+      })
       .catch(() => setQrSrc(null));
   }, [whatsappMessage]);
 
