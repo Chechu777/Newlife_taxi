@@ -23,7 +23,6 @@ export default function AddressAutocomplete({
   onFocus,
   inputRef
 }: AddressAutocompleteProps) {
-
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -74,7 +73,7 @@ export default function AddressAutocomplete({
       />
 
       {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute z-50 left-0 right-0 bg-white border rounded shadow mt-1">
+        <div className="absolute left-0 right-0 bg-white border rounded shadow mt-1 z-50">
           {suggestions.map((s, i) => (
             <button
               key={i}
