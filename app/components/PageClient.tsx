@@ -154,11 +154,16 @@ export default function PageClient() {
 
   // Genera QR
   useEffect(() => {
-    QRCode.toDataURL(whatsappLink, { margin: 2, scale: 6 })
-      .then((url) => setQrSrc(url))
-      .catch(() => setQrSrc(null));
+    async function generateQR() {
+      try {
+        const url: string = await QRCode.toDataURL(whatsappLink, { margin: 2, scale: 6 });
+        setQrSrc(url);
+      } catch {
+        setQrSrc(null);
+      }
+    }
+    generateQR();
   }, [whatsappMessage]);
-
   // ---------------------------
   // UTIL: formateo corto de direcciones según tu especificación
   // Input de nominatim: display_name largo. Convertir a: "C. de {calle}, {número}, {Distrito corto}, {CP} {Ciudad}"
