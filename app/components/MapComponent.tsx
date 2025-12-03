@@ -327,12 +327,10 @@ const MapComponent = forwardRef<any, Props>(function MapComponent(
   // Render
   return (
     <MapContainer
+      ref={mapRef} // ahora mapRef es MutableRefObject<L.Map | null>
       center={pickup ? [pickup.lat, pickup.lng] : [40.4168, -3.7038]}
       zoom={13}
       style={{ width: "100%", height: "100%" }}
-      whenCreated={(mapInstance) => {
-        mapRef.current = mapInstance;
-      }}
       preferCanvas={true}
     >
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' />
