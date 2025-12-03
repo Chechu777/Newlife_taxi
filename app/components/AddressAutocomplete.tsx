@@ -1,94 +1,178 @@
+// app/components/AddressAutocomplete.tsx
 "use client";
-// force redeploy
-import { useEffect, useState, useRef } from "react";
 
-interface Suggestion {
-  address: string;
+import React, { useEffect, useRef, useState } from "react";
+
+export interface Suggestion {
   lat: number;
   lng: number;
+  address: string; // display_name from nominatim
+  raw?: any; // optional full data
 }
 
-interface AddressAutocompleteProps {
+interface Props {
   value: string;
-  onChange: (v: string) => void;
+  onChange: (val: string) => void;
   onSelect: (s: Suggestion) => void;
-  onFocus?: () => void;
-  inputRef?: React.RefObject<HTMLInputElement> | null;
+  inputRef?: React.RefObject<HTMLInputElement>;
+  placeholder?: string;
+  disabled?: boolean;
+  showToggle?: boolean;
+  // suppressOpen not required here; parent controls disabled
 }
 
 export default function AddressAutocomplete({
   value,
   onChange,
   onSelect,
-  onFocus,
-  inputRef
-}: AddressAutocompleteProps) {
+  inputRef,
+  placeholder,
+  disabled = false,
+  showToggle = true,
+}: Props) {
+  const [suggestionsEnabled, setSuggestionsEnabled] = useState(true);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [open, setOpen] = useState(false);
+  const controller = useRef<AbortController | null>(null);
+  const idleTimer = useRef<number | null>(null);
 
-  const timeoutRef = useRef<any>(null);
+  // Format short address per your spec:
+  // "C. de Ezequiel Solana, 21, Cdad. Lineal, 28017 Madrid"
+  function formatShortFromNominatimItem(item: any) {
+    try {
+      const addr = item.address || {};
+      const house = addr.house_number || "";
+      const road = addr.road || addr.pedestrian || addr.cycleway || addr.footway || item.name || "";
+      const suburb = addr.suburb || addr.city_district || addr.neighbourhood || addr.village || "";
+      const city = addr.city || addr.town || addr.village || "Madrid";
+      const postcode = addr.postcode || "";
 
-  function fetchSuggestions(query: string) {
-    if (!query || query.length < 3) {
+      // street short
+      let streetShort = road;
+      if (streetShort) {
+        streetShort = streetShort.replace(/^Calle\s+de\s+/i, "").replace(/^Calle\s+/i, "");
+        streetShort = `C. de ${streetShort}`;
+      }
+
+      // district short: "Ciudad Lineal" -> "Cdad. Lineal"
+      let districtShort = suburb;
+      districtShort = districtShort.replace(/Ciudad\s+/i, "Cdad. ").replace(/CiudadLineal/i, "Cdad. Lineal");
+
+      const parts: string[] = [];
+      if (streetShort) parts.push(streetShort + (house ? `, ${house}` : ""));
+      if (districtShort) parts.push(districtShort);
+      if (postcode || city) parts.push(`${postcode ? postcode + " " : ""}${city}`);
+
+      return parts.join(", ").replace(/\s+,/g, ",").trim();
+    } catch {
+      return item.display_name || "";
+    }
+  }
+
+  async function search(q: string) {
+    if (!suggestionsEnabled) return;
+    if (q.length < 3) {
       setSuggestions([]);
+      setOpen(false);
       return;
     }
 
-    fetch(`/api/autocomplete?q=${encodeURIComponent(query)}`)
-      .then(res => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) setSuggestions(data);
-      })
-      .catch(() => {});
+    if (controller.current) controller.current.abort();
+    controller.current = new AbortController();
+
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
+        q
+      )}&limit=8&addressdetails=1&accept-language=es`;
+      const r = await fetch(url, { signal: controller.current.signal });
+      const data = await r.json();
+      const mapped = (data || []).map((d: any) => ({
+        lat: parseFloat(d.lat),
+        lng: parseFloat(d.lon),
+        address: formatShortFromNominatimItem(d) || d.display_name || `${d.lat}, ${d.lon}`,
+        raw: d,
+      })) as Suggestion[];
+
+      setSuggestions(mapped);
+      if (mapped.length > 0) setOpen(true);
+      else setOpen(false);
+
+      // idle close timer 3s
+      if (idleTimer.current) window.clearTimeout(idleTimer.current);
+      idleTimer.current = window.setTimeout(() => setOpen(false), 3000);
+    } catch {
+      // ignore network errors
+    }
   }
 
-  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const v = e.target.value;
-    onChange(v);
-    setShowSuggestions(true);
+  // debounce input
+  useEffect(() => {
+    if (value.length < 3) {
+      setSuggestions([]);
+      setOpen(false);
+      return;
+    }
+    const t = window.setTimeout(() => search(value), 350);
+    return () => {
+      window.clearTimeout(t);
+      if (controller.current) controller.current.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, suggestionsEnabled]);
 
-    clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      fetchSuggestions(v);
-    }, 300);
+  // reset idle timer on typing
+  function handleInput(e: React.ChangeEvent<HTMLInputElement>) {
+    onChange(e.target.value);
+    if (idleTimer.current) {
+      window.clearTimeout(idleTimer.current);
+      idleTimer.current = window.setTimeout(() => setOpen(false), 3000);
+    }
   }
 
-  function handleBlur() {
-    setTimeout(() => setShowSuggestions(false), 150);
+  function handleSelect(s: Suggestion) {
+    onSelect(s);
+    setOpen(false);
+    setSuggestions([]);
   }
 
   return (
     <div className="relative w-full">
-      <input
-        ref={inputRef || undefined}
-        value={value}
-        onChange={handleInputChange}
-        onFocus={() => {
-          onFocus && onFocus();
-          setShowSuggestions(true);
-        }}
-        onBlur={handleBlur}
-        type="text"
-        className="mt-1 w-full border px-3 py-2 rounded text-slate-900"
-      />
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          disabled={disabled}
+          value={value}
+          onChange={handleInput}
+          placeholder={placeholder}
+          className={`w-full border px-3 py-2 rounded text-slate-900 ${disabled ? "bg-gray-200 cursor-not-allowed" : "bg-white"}`}
+        />
 
-      {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute left-0 right-0 bg-white border rounded shadow mt-1 z-50">
+        {showToggle && (
+          <button
+            disabled={disabled}
+            type="button"
+            onClick={() => setSuggestionsEnabled((v) => !v)}
+            className={`px-3 py-2 rounded text-white ${suggestionsEnabled ? "bg-emerald-600" : "bg-gray-400"}`}
+            title={suggestionsEnabled ? "Sugerencias ON" : "Sugerencias OFF"}
+          >
+            🔍
+          </button>
+        )}
+      </div>
+
+      {open && suggestions.length > 0 && !disabled && suggestionsEnabled && (
+        <div className="absolute z-50 w-full bg-white text-black shadow border rounded mt-1 max-h-64 overflow-y-auto">
           {suggestions.map((s, i) => (
-            <button
+            <div
               key={i}
-              onMouseDown={() => {
-                onSelect(s);
-                setShowSuggestions(false);
-              }}
-              className="block w-full text-left px-3 py-2 hover:bg-slate-100 text-slate-800 text-sm"
+              onClick={() => handleSelect(s)}
+              className="px-3 py-2 hover:bg-gray-200 cursor-pointer"
             >
               {s.address}
-            </button>
+            </div>
           ))}
         </div>
       )}
     </div>
   );
 }
-// force redeploy

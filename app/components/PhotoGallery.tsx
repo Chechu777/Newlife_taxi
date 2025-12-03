@@ -1,67 +1,79 @@
-"use client";
+// app/components/PageClient.tsx  (SECCIÓN PhotoGallery — REEMPLAZO COMPLETO)
 
-import { useMemo, useState } from "react";
-import Image from "next/image";
-import Lightbox from "yet-another-react-lightbox";
-import Fullscreen from "yet-another-react-lightbox/plugins/fullscreen";
-import Thumbnails from "yet-another-react-lightbox/plugins/thumbnails";
-
-type Props = {
+function PhotoGallery({
+  main = "/Taxi.jpg",
+  others = ["/car1.jpg", "/car2.jpg", "/car3.jpg", "/car4.jpg"]
+}: {
   main?: string;
   others?: string[];
-};
-
-export default function PhotoGallery({
-  main = "/car1.jpg",
-  others = ["/car2.jpg", "/car3.jpg", "/car4.jpg", "/car5.jpg"],
-}: Props) {
-  const [openGallery, setOpenGallery] = useState(false);
+}) {
+  const [open, setOpen] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [index, setIndex] = useState(0);
 
-  const slides = useMemo(() => [main, ...others], [main, others]);
+  // Lista completa de fotos
+  const slides = [main, ...others];
 
   return (
-    <div className="w-full max-w-3xl">
-      <div className="flex justify-center">
+    <div className="w-full">
+
+      {/* FOTO PRINCIPAL — ÚNICA */}
+      <div
+        className="rounded overflow-hidden shadow mb-3 cursor-pointer"
+        onClick={() => {
+          setIndex(0);
+          setTimeout(() => setLightboxOpen(true), 80);
+        }}
+      >
+        <Image
+          src={main}
+          alt="Foto principal"
+          width={1600}
+          height={900}
+          className="w-full h-56 object-cover rounded"
+          unoptimized
+        />
+      </div>
+
+      {/* BOTÓN "MÁS FOTOS" */}
+      <div className="text-center">
         <button
-          onClick={() => setOpenGallery(v => !v)}
-          className="inline-flex items-center gap-2 bg-white/95 text-slate-900 px-4 py-2 rounded-full shadow-md hover:shadow-lg transition"
+          onClick={() => setOpen(o => !o)}
+          className="text-sm px-3 py-2 rounded bg-slate-200 text-slate-900"
         >
-          <span className="text-sm font-semibold">
-            {openGallery ? "▲ Ocultar fotos" : "▼ Ver fotos"}
-          </span>
+          {open ? "Ocultar fotos" : "Más fotos"}
         </button>
       </div>
 
-      {openGallery && (
-        <div className="mt-4 bg-white/95 rounded shadow p-3 overflow-hidden">
-          <div className="grid grid-cols-4 gap-2 mb-3">
-            {slides.map((src, i) => (
-              <div
-                key={i}
-                className="h-24 relative rounded overflow-hidden cursor-pointer"
-                onClick={() => {
-                  setIndex(i);
-                  setTimeout(() => setLightboxOpen(true), 80);
-                }}
-              >
-                <Image
-                  src={src}
-                  alt={`Mini ${i+1}`}
-                  fill
-                  style={{ objectFit: "cover" }}
-                  unoptimized
-                />
-              </div>
-            ))}
-          </div>
+      {/* MINIATURAS — SOLO CUANDO OPEN = TRUE */}
+      {open && (
+        <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {slides.map((src, i) => (
+            <div
+              key={i}
+              className="border rounded overflow-hidden cursor-pointer h-24 relative"
+              onClick={() => {
+                setIndex(i);
+                setTimeout(() => setLightboxOpen(true), 80);
+              }}
+            >
+              <Image
+                src={src}
+                alt={`thumb${i}`}
+                fill
+                className="object-cover"
+                unoptimized
+              />
+            </div>
+          ))}
         </div>
       )}
+
+      {/* LIGHTBOX */}
       <Lightbox
         open={lightboxOpen}
-        index={index}
         close={() => setLightboxOpen(false)}
+        index={index}
         slides={slides.map(s => ({ src: s }))}
         plugins={[Fullscreen, Thumbnails]}
         render={{
