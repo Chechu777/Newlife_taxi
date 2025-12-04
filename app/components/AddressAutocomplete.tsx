@@ -1,7 +1,7 @@
 // app/components/AddressAutocomplete.tsx
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, RefObject } from "react";
 
 export interface Suggestion {
   lat: number;
@@ -14,7 +14,7 @@ interface Props {
   value: string;
   onChange: (val: string) => void;
   onSelect: (s: Suggestion) => void;
-  inputRef?: RefObject<HTMLInputElement>;
+  inputRef?: RefObject<HTMLInputElement | null>;
   placeholder?: string;
   disabled?: boolean;
   showToggle?: boolean;
