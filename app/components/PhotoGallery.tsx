@@ -1,4 +1,13 @@
-// app/components/PageClient.tsx  (SECCIÓN PhotoGallery — REEMPLAZO COMPLETO)
+"use client";
+
+import { useState } from "react";
+import Image from "next/image";
+
+import Lightbox from "yet-another-react-lightbox";
+import Fullscreen from "yet-another-react-lightbox/plugins/fullscreen";
+import Thumbnails from "yet-another-react-lightbox/plugins/thumbnails";
+import "yet-another-react-lightbox/styles.css";
+import "yet-another-react-lightbox/plugins/thumbnails.css";
 
 function PhotoGallery({
   main = "/Taxi.jpg",
