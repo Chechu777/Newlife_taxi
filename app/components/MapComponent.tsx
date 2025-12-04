@@ -12,11 +12,7 @@ import { MapContainer, TileLayer, Marker, Polyline, useMapEvents } from "react-l
 import L, { LatLngExpression } from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-type LatLngObj = {
-  lat?: number;
-  lng?: number;
-  address?: string;
-} | null;
+type LatLngObj = { lat: number; lng: number; address?: string } | null;
 
 interface Props {
   pickupInitial?: LatLngObj | null;
