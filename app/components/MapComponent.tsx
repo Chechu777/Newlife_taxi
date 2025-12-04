@@ -12,11 +12,15 @@ import { MapContainer, TileLayer, Marker, Polyline, useMapEvents } from "react-l
 import L, { LatLngExpression } from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-type LatLngObj = { lat: number; lng: number; address?: string } | null;
+type LatLngObj = {
+  lat?: number;
+  lng?: number;
+  address?: string;
+} | null;
 
 interface Props {
-  pickupInitial?: LatLngObj;
-  destinationInitial?: LatLngObj;
+  pickupInitial?: LatLngObj | null;
+  destinationInitial?: LatLngObj | null;
   selectedField?: "pickup" | "destination" | null;
   lockedUI?: boolean;
   onPick: (type: "pickup" | "destination", loc: LatLngObj) => void;
