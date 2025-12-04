@@ -14,7 +14,7 @@ interface Props {
   value: string;
   onChange: (val: string) => void;
   onSelect: (s: Suggestion) => void;
-  inputRef?: React.RefObject<HTMLInputElement>;
+  inputRef?: RefObject<HTMLInputElement>;
   placeholder?: string;
   disabled?: boolean;
   showToggle?: boolean;
