@@ -338,7 +338,11 @@ const MapComponent = forwardRef<any, Props>(function MapComponent(
   return (
     <MapContainer
       ref={mapRef} // ahora mapRef es MutableRefObject<L.Map | null>
-      center={pickup ? [pickup.lat, pickup.lng] : [40.4168, -3.7038]}
+      center={
+        pickup
+          ? [pickup.lat as number, pickup.lng as number]
+          : [40.4168, -3.7038]
+      }
       zoom={13}
       style={{ width: "100%", height: "100%" }}
       preferCanvas={true}
