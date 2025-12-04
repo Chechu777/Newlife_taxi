@@ -223,7 +223,10 @@ const MapComponent = forwardRef<any, Props>(function MapComponent(
         }
       } catch (err) {
         // fallback
-        setRouteCoords([[p.lat, p.lng], [d.lat, d.lng]]);
+        setRouteCoords([
+          [p.lat as number, p.lng as number],
+          [d.lat as number, d.lng as number],
+        ]);
         onRouteCalculated(null, null);
       }
     }
