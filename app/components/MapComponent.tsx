@@ -87,8 +87,8 @@ const MapComponent = forwardRef<any, Props>(function MapComponent(
       const map = mapRef.current;
       if (!map) return;
       const bounds: LatLngExpression[] = [];
-      if (pickup && typeof pickup.lat === "number") bounds.push([pickup.lat, pickup.lng]);
-      if (destination && typeof destination.lat === "number") bounds.push([destination.lat, destination.lng]);
+      if (pickup && typeof pickup.lat === "number") bounds.push([pickup.lat as number, pickup.lng as number]);
+      if (destination && typeof destination.lat === "number") bounds.push([destination.lat as number, destination.lng as number]);
       if (bounds.length === 0 && lastUserPosRef.current) {
         map.setView([lastUserPosRef.current.lat, lastUserPosRef.current.lng], 15, { animate: true });
         return;
