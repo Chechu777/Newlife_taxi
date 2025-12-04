@@ -101,8 +101,9 @@ const WHATSAPP_NUMBER = "3460796659";
 
 export default function PageClient() {
   // estado local
-  const [pickup, setPickup] = useState<{ lat?: number; lng?: number; address?: string } | null>(null);
-  const [destination, setDestination] = useState<{ lat?: number; lng?: number; address?: string } | null>(null);
+  type LatLngObj = { lat: number; lng: number; address?: string };
+  const [pickup, setPickup] = useState<LatLngObj | null>(null);
+  const [destination, setDestination] = useState<LatLngObj | null>(null);
 
   const [addressInput, setAddressInput] = useState("");
   const [destinationInput, setDestinationInput] = useState("");
