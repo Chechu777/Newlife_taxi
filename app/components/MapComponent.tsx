@@ -355,7 +355,7 @@ const MapComponent = forwardRef<any, Props>(function MapComponent(
       {/* pickup marker */}
       {pickup && typeof pickup.lat === "number" && (
         <Marker
-          position={[pickup.lat, pickup.lng]}
+          position={[pickup.lat as number, pickup.lng as number]}
           icon={pickupIcon}
           draggable={!lockedUI}
           eventHandlers={{
@@ -367,7 +367,7 @@ const MapComponent = forwardRef<any, Props>(function MapComponent(
       {/* destination marker */}
       {destination && typeof destination.lat === "number" && (
         <Marker
-          position={[destination.lat, destination.lng]}
+          position={[destination.lat as number, destination.lng as number]}
           icon={destIcon}
           draggable={!lockedUI}
           eventHandlers={{
