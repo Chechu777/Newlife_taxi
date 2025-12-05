@@ -425,21 +425,20 @@ export default function PageClient() {
     if (!selected) return;
 
     const latNum = Number(selected.lat);
-    const lonNum = Number(selected.lon);
+    const lonNum = Number(selected.lng);
     if (isNaN(latNum) || isNaN(lonNum)) return;
 
-    // ← Usa tu formateador corto
-    const formatted = formatShortAddress(selected.display_name || "");
+    const formatted = formatShortAddress(selected.address || "");
 
     if (field === "pickup") {
       setPickup({ lat: latNum, lng: lonNum, address: formatted });
-      setAddressInput(formatted);          // ← Esto escribe en el input
+      setAddressInput(formatted);         // ← YA ESCRIBE EN EL INPUT
       mapRef.current?.moveTo?.(latNum, lonNum);
     }
 
     if (field === "destination") {
       setDestination({ lat: latNum, lng: lonNum, address: formatted });
-      setDestinationInput(formatted);      // ← Esto escribe en el input
+      setDestinationInput(formatted);     // ← YA ESCRIBE EN EL INPUT
     }
 
     // Ajustar zoom si ambos están definidos
@@ -507,69 +506,69 @@ export default function PageClient() {
 
         {/* SECCIÓN 2: FORM + MAP */}
         <section className="mt-6 bg-[#e4eaf1] text-slate-900 p-6 rounded shadow-sm">
-          <div className="max-w-4xl mx-auto flex gap-3 mb-6">
-            {/* Columna de botones */}
-            <div className="flex flex-col gap-4 w-28">
+          {/* === REEMPLAZAR ESTE BLOQUE === */}
+          <div className="max-w-4xl mx-auto flex flex-col gap-4 mb-6">
+
+            {/* fila: Recogida */}
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedField("pickup");
-                  setLockedUI(false);         // <-- evita que lockedUI quede atascado
-                }}
-                className={`w-full px-3 py-2 rounded-lg text-xs font-semibold ${
-                  selectedField === "pickup"
-                    ? "bg-emerald-600 text-white"
-                    : "bg-slate-300 text-slate-800"
-                }`}
+                onClick={() => { setSelectedField("pickup"); setLockedUI(false); pickupRef.current?.focus(); }}
+                className={`flex items-center justify-center w-12 h-12 rounded-lg text-lg font-semibold ${selectedField === "pickup" ? "bg-emerald-600 text-white" : "bg-slate-300 text-slate-800"}`}
+                aria-label="Seleccionar recogida"
+                title="Seleccionar recogida"
               >
-                🚕 Recogida
+                📍
               </button>
 
+              <div className="flex-1">
+                <AddressAutocomplete
+                  inputRef={pickupRef}
+                  value={addressInput}
+                  disabled={selectedField !== "pickup" || lockedUI}
+                  placeholder="Escribe punto de recogida..."
+                  hideSearchIcon={true}
+                  onChange={(v) => {
+                    setSelectedField("pickup");
+                    setAddressInput(v);
+                  }}
+                  onSelect={(s) => handleAddressSelectFromAutocomplete(s, "pickup")}
+                />
+              </div>
+            </div>
+
+            {/* fila: Destino */}
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedField("destination");
-                  setLockedUI(false);         // <-- igual aquí
-                }}
-                className={`w-full px-3 py-2 rounded-lg text-xs font-semibold ${
-                  selectedField === "destination"
-                    ? "bg-emerald-600 text-white"
-                    : "bg-slate-300 text-slate-800"
-                }`}
+                onClick={() => { setSelectedField("destination"); setLockedUI(false); destRef.current?.focus(); }}
+                className={`flex items-center justify-center w-12 h-12 rounded-lg text-lg font-semibold ${selectedField === "destination" ? "bg-emerald-600 text-white" : "bg-slate-300 text-slate-800"}`}
+                aria-label="Seleccionar destino"
+                title="Seleccionar destino"
               >
-                🏁 Destino
+                {/* usa la misma imagen que en el mapa */}
+                <img src="/marker-icon-2x.png" alt="Destino" className="w-6 h-6" />
               </button>
+
+              <div className="flex-1">
+                <AddressAutocomplete
+                  inputRef={destRef}
+                  value={destinationInput}
+                  disabled={selectedField !== "destination" || lockedUI}
+                  placeholder="Escribe destino..."
+                  hideSearchIcon={true}
+                  onChange={(v) => {
+                    setSelectedField("destination");
+                    setDestinationInput(v);
+                  }}
+                  onSelect={(s) => handleAddressSelectFromAutocomplete(s, "destination")}
+                />
+              </div>
             </div>
 
-            {/* Inputs */}
-            <div className="flex-1 flex flex-col gap-4">
-              <AddressAutocomplete
-                inputRef={pickupRef}
-                value={addressInput}
-                disabled={selectedField !== "pickup" || lockedUI}
-                placeholder="Escribe punto de recogida..."
-                hideSearchIcon={true}
-                onChange={(v) => {
-                  setSelectedField("pickup");        // <-- PARCHE IMPORTANTE
-                  setAddressInput(v);
-                }}
-                onSelect={(s) => handleAddressSelectFromAutocomplete(s, "pickup")}
-              />
-
-              <AddressAutocomplete
-                inputRef={destRef}
-                value={destinationInput}
-                disabled={selectedField !== "destination" || lockedUI}
-                placeholder="Escribe destino..."
-                hideSearchIcon={true}
-                onChange={(v) => {
-                  setSelectedField("destination");   // <-- PARCHE IMPORTANTE
-                  setDestinationInput(v);
-                }}
-                onSelect={(s) => handleAddressSelectFromAutocomplete(s, "destination")}
-              />
-            </div>
           </div>
+          {/* === FIN DEL BLOQUE A REEMPLAZAR === */}
+
 
 <div className="mt-4 max-w-4xl mx-auto">
             <QuickPlaces onSelect={handleQuickPlaceSelect} disabled={!selectedField || lockedUI} />
