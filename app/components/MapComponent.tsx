@@ -90,16 +90,15 @@ const MapComponent = forwardRef<any, Props>(function MapComponent(
         return;
       }
       if (bounds.length === 1) {
-        //map.setView(bounds[0], 15, { animate: true });
         map.flyTo(bounds[0], 15);
         return;
       }
       try {
         const b = L.latLngBounds(bounds as any);
-        //map.fitBounds(b, { padding: [80, 80], maxZoom: 16 });
         if (pickup && destination) {map.fitBounds(b, { padding: [80, 80], maxZoom: 16 });}
       } catch {}
     },
+
     lock() {
       const map = mapRef.current;
       if (!map) return;
@@ -107,6 +106,7 @@ const MapComponent = forwardRef<any, Props>(function MapComponent(
       map.scrollWheelZoom.disable();
       map.doubleClickZoom.disable();
     },
+
     unlock() {
       const map = mapRef.current;
       if (!map) return;
@@ -114,7 +114,15 @@ const MapComponent = forwardRef<any, Props>(function MapComponent(
       map.scrollWheelZoom.enable();
       map.doubleClickZoom.enable();
     },
+
+    // ✅ NUEVO MÉTODO: moveTo
+    moveTo(lat: number, lng: number) {
+      const map = mapRef.current;
+      if (!map) return;
+      map.setView([lat, lng], 15, { animate: true });
+    }
   }));
+
 
   // keep internal state in sync with props when they change externally
   useEffect(() => {

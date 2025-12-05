@@ -23,14 +23,16 @@ export default function QuickPlaces({ onSelect, disabled = false, initialOpen = 
 
   const PLACES: Record<string, any[]> = {
     air: [
-      { name: "T2 Salidas", lat: 40.4719, lng: -3.5626, address: "T2 Salidas, Aeropuerto Adolfo Suárez Madrid-Barajas" },
-      { name: "T2 Llegadas", lat: 40.4712, lng: -3.5621, address: "T2 Llegadas, Aeropuerto Adolfo Suárez Madrid-Barajas" },
+      { name: "T2 Salidas", lat: 40.468296, lng: -3.569962, address: "T2 Salidas, Aeropuerto Adolfo Suárez Madrid-Barajas" },
+      { name: "T2 Llegadas", lat: 40.468465, lng: -3.569118, address: "T2 Llegadas, Aeropuerto Adolfo Suárez Madrid-Barajas" },
       { name: "T4 Salidas", lat: 40.4911, lng: -3.5930, address: "T4 Salidas, Aeropuerto Adolfo Suárez Madrid-Barajas" },
-      { name: "T4 Llegadas", lat: 40.4915, lng: -3.5920, address: "T4 Llegadas, Aeropuerto Adolfo Suárez Madrid-Barajas" },
+      { name: "T4 Llegadas", lat: 40.491549, lng: -3.593968, address: "T4 Llegadas, Aeropuerto Adolfo Suárez Madrid-Barajas" },
     ],
     train: [
-      { name: "Atocha", lat: 40.4066, lng: -3.6910, address: "Estación Atocha, Madrid" },
+      { name: "Atocha", lat: 40.407174, lng: -3.689686, address: "Estación Atocha, Madrid" },
       { name: "Chamartín", lat: 40.4723, lng: -3.6831, address: "Estación Chamartín, Madrid" },
+      { name: "Príncipe Pío", lat: 40.421077, lng: -3.720757, address: "Estación Chamartín, Madrid" },
+      { name: "Nuevos Ministerios", lat: 40.446386, lng: -3.691689, address: "Estación Chamartín, Madrid" },
     ],
     bus: [
       { name: "Av América", lat: 40.4397, lng: -3.6766, address: "Av. América, Madrid" },

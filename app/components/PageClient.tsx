@@ -95,9 +95,10 @@ export type MapHandle = {
   fitMarkers?: () => void;
   lock?: () => void;
   unlock?: () => void;
+  moveTo?: (lat: number, lng: number) => void; 
 };
 
-const WHATSAPP_NUMBER = "3460796659";
+const WHATSAPP_NUMBER = "+34640796659";
 
 export default function PageClient() {
   // estado local
@@ -130,10 +131,14 @@ export default function PageClient() {
     setDate(now.toISOString().split("T")[0]);
   }, []);
 
+  function handleWhatsAppClick() {
+    // Parche silencioso: evita errores si el build anterior aún lo busca
+  }
+
   // Construcción del mensaje de WhatsApp
-  function buildMapsLink(lat?: number | undefined, lng?: number | undefined) {
+  function buildMapsLink(lat?: number, lng?: number) {
     if (!lat || !lng) return "";
-    return `https://maps.app.goo.gl/?q=${lat},${lng}`;
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
   }
 
   function formatWhatsAppMessage(addr: string, dest: string, dt: string, tm: string, ex: string) {
@@ -170,71 +175,92 @@ export default function PageClient() {
   // Input de nominatim: display_name largo. Convertir a: "C. de {calle}, {número}, {Distrito corto}, {CP} {Ciudad}"
   function formatShortAddress(longAddress: string) {
     if (!longAddress) return "";
+
     // separar por comas y limpiar
     const parts = longAddress.split(",").map((p) => p.trim()).filter(Boolean);
-    // heurística:
-    // normalmente Nominatim: "21, Calle de Ezequiel Solana, Pueblo Nuevo, Ciudad Lineal, Madrid, Comunidad de Madrid, 28017, España"
-    // Queremos: "C. de Ezequiel Solana, 21, Cdad. Lineal, 28017 Madrid"
+
     try {
-      // Buscar elemento que contenga 'Madrid' para ubicar ciudad + código postal hacia el final
-      const lastIdx = parts.findIndex((p) => /Madrid/i.test(p) || /\d{5}/.test(p));
-      // si lastIdx >=0, recogemos CP si está justo después
+      // Buscar CP y ciudad
       let city = "Madrid";
       let cp = "";
+
+      const lastIdx = parts.findIndex((p) => /Madrid/i.test(p) || /\d{5}/.test(p));
+
       if (lastIdx >= 0) {
-        // intentar extraer cp del slice final
         const tail = parts.slice(lastIdx);
-        // buscar elemento con 5 dígitos
+
+        // CP
         const cpElem = tail.find((t) => /\b\d{5}\b/.test(t));
         if (cpElem) cp = (cpElem.match(/\b\d{5}\b/) || [""])[0];
-        const cityElem = tail.find((t) => /\b\d{5}\b/.test(t) ? false : /Madrid/i.test(t) || /[A-Za-z]+/.test(t));
-        if (cityElem && /Madrid/i.test(cityElem)) city = "Madrid";
+
+        // Ciudad
+        const cityElem = tail.find((t) =>
+          /\b\d{5}\b/.test(t) ? false : /Madrid/i.test(t)
+        );
+        if (cityElem) city = "Madrid";
       }
 
-      // primer elemento podría ser número de puerta
+      // Detectar calle y número
       let house = "";
       let street = "";
+
       if (parts.length >= 2) {
-        // si el primer part es "21" o "21A"
         if (/^\d+/.test(parts[0])) {
+          // caso típico: "21, Calle de Ejemplo"
           house = parts[0];
           street = parts[1];
         } else {
-          // a veces el primer es "21 Calle ...", en cuyo caso detectamos número en el primer
-          const m = parts[0].match(/^(\d+)\s+(.*)$/);
+          // caso: "Calle de Ejemplo 21"
+          const m = parts[0].match(/^(.*)\s+(\d+)$/);
           if (m) {
-            house = m[1];
-            street = m[2];
+            street = m[1];
+            house = m[2];
           } else {
-            // fallback: street = parts[0] or parts[1]
             street = parts[0];
-            if (parts[1] && /^\d+$/.test(parts[1])) {
-              house = parts[1];
-            }
+            if (parts[1] && /^\d+$/.test(parts[1])) house = parts[1];
           }
         }
       } else {
         street = parts[0] || "";
       }
 
-      // district candidate: buscar "Ciudad Lineal" u otros en parts
-      const districtPart = parts.find((p) => /Ciudad Lineal|Chamberí|Salamanca|Arganzuela|Centro|Retiro|Moncloa|Latina|Carabanchel|Tetuan|Usera|Fuencarral|Chamartín|Atocha|Pueblo Nuevo/i.test(p));
-      let district = districtPart || parts[2] || "";
-      // reemplazos:
-      district = district.replace(/Ciudad/i, "Cdad.").replace(/Ciudad Lineal/i, "Cdad. Lineal");
+      // Detectar distrito
+      const districtPart = parts.find((p) =>
+        /Ciudad Lineal|Chamberí|Salamanca|Arganzuela|Centro|Retiro|Moncloa|Latina|Carabanchel|Tetuan|Usera|Fuencarral|Chamartín|Atocha|Pueblo Nuevo/i.test(
+          p
+        )
+      );
 
-      // Construir
-      const streetShort = street ? (street.replace(/^Calle\s+de\s+/i, "C. de ").replace(/^Calle\s+/i, "C. de ")) : "";
+      let district = districtPart || parts[2] || "";
+
+      // Corregir abreviaciones
+      district = district
+        .replace(/Ciudad Lineal/i, "Cdad. Lineal")
+        .replace(/\bCiudad\b/i, "Cdad.");
+
+      // Abreviar "Calle"
+      const streetShort = street
+        ? street
+            .replace(/^Calle\s+de\s+/i, "C. de ")
+            .replace(/^Calle\s+/i, "C. ")
+        : "";
+
       const housePart = house ? `, ${house}` : "";
       const cpCity = cp ? `${cp} ${city}` : city;
 
-      const formatted = `${streetShort}${housePart}${district ? `, ${district}` : ""}${cp ? `, ${cpCity}` : `, ${city}`}`;
-      // limpiar comas repetidas
-      return formatted.replace(/\s+,/g, ",").replace(/,\s*,/g, ",").trim();
+      const formatted = `${streetShort}${housePart}${
+        district ? `, ${district}` : ""
+      }${cp ? `, ${cpCity}` : `, ${city}`}`;
+
+      return formatted
+        .replace(/\s+,/g, ",")
+        .replace(/,\s*,/g, ",")
+        .trim();
     } catch (err) {
       return longAddress;
     }
   }
+
 
   // ---------------------------
   // AUTO-GEOLOCALIZACIÓN al cargar: pedir permiso, rellenar pickup y centrar mapa con punto azul + halo
@@ -395,34 +421,33 @@ export default function PageClient() {
     }, 200);
   }
 
-  // Si una sugerencia se selecciona desde AddressAutocomplete
-  function handleAddressSelectFromAutocomplete(s: Suggestion) {
-    // s.address probablemente sea largo -> lo formateamos
-    const formatted = formatShortAddress(s.address || `${s.lat}, ${s.lng}`);
+  function handleAddressSelectFromAutocomplete(selected: any, field: "pickup" | "destination") {
+    if (!selected) return;
 
-    if (selectedField === "destination") {
-      setDestination({ lat: s.lat, lng: s.lng, address: formatted });
-      setDestinationInput(formatted);
-    } else {
-      setPickup({ lat: s.lat, lng: s.lng, address: formatted });
-      setTimeout(() => {try {mapRef.current?.fitMarkers?.();} catch {}
-      }, 150);
-      setAddressInput(formatted);
+    const latNum = Number(selected.lat);
+    const lonNum = Number(selected.lon);
+    if (isNaN(latNum) || isNaN(lonNum)) return;
+
+    // ← Usa tu formateador corto
+    const formatted = formatShortAddress(selected.display_name || "");
+
+    if (field === "pickup") {
+      setPickup({ lat: latNum, lng: lonNum, address: formatted });
+      setAddressInput(formatted);          // ← Esto escribe en el input
+      mapRef.current?.moveTo?.(latNum, lonNum);
     }
 
-    // pedir fit
-    setTimeout(() => {
-      try {
-        mapRef.current?.fitMarkers?.();
-      } catch {}
-    }, 180);
-  }
+    if (field === "destination") {
+      setDestination({ lat: latNum, lng: lonNum, address: formatted });
+      setDestinationInput(formatted);      // ← Esto escribe en el input
+    }
 
-  // Validación botón WhatsApp
-  function handleWhatsAppClick(e: React.MouseEvent<HTMLAnchorElement>) {
-    if (!addressInput || !destinationInput || !time) {
-      e.preventDefault();
-      alert("📣 Complete origen / destino / hora.");
+    // Ajustar zoom si ambos están definidos
+    const pickupValid = field === "pickup" ? { lat: latNum, lng: lonNum } : pickup;
+    const destValid = field === "destination" ? { lat: latNum, lng: lonNum } : destination;
+
+    if (pickupValid && destValid) {
+      mapRef.current?.fitMarkers?.();
     }
   }
 
@@ -482,46 +507,71 @@ export default function PageClient() {
 
         {/* SECCIÓN 2: FORM + MAP */}
         <section className="mt-6 bg-[#e4eaf1] text-slate-900 p-6 rounded shadow-sm">
-          <div className="flex gap-3 justify-center mb-3">
-            <button
-              onClick={() => toggleSelectField("pickup")}
-              className={`px-4 py-2 rounded-full text-sm font-semibold ${
-                selectedField === "pickup" ? "bg-emerald-600 text-white" : "bg-slate-300 text-slate-800"
-              }`}
-            >
-              Punto de recogida
-            </button>
+          <div className="max-w-4xl mx-auto flex gap-3 mb-6">
+            {/* Columna de botones */}
+            <div className="flex flex-col gap-4 w-28">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedField("pickup");
+                  setLockedUI(false);         // <-- evita que lockedUI quede atascado
+                }}
+                className={`w-full px-3 py-2 rounded-lg text-xs font-semibold ${
+                  selectedField === "pickup"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-slate-300 text-slate-800"
+                }`}
+              >
+                🚕 Recogida
+              </button>
 
-            <button
-              onClick={() => toggleSelectField("destination")}
-              className={`px-4 py-2 rounded-full text-sm font-semibold ${
-                selectedField === "destination" ? "bg-emerald-600 text-white" : "bg-slate-300 text-slate-800"
-              }`}
-            >
-              Destino
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedField("destination");
+                  setLockedUI(false);         // <-- igual aquí
+                }}
+                className={`w-full px-3 py-2 rounded-lg text-xs font-semibold ${
+                  selectedField === "destination"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-slate-300 text-slate-800"
+                }`}
+              >
+                🏁 Destino
+              </button>
+            </div>
+
+            {/* Inputs */}
+            <div className="flex-1 flex flex-col gap-4">
+              <AddressAutocomplete
+                inputRef={pickupRef}
+                value={addressInput}
+                disabled={selectedField !== "pickup" || lockedUI}
+                placeholder="Escribe punto de recogida..."
+                hideSearchIcon={true}
+                onChange={(v) => {
+                  setSelectedField("pickup");        // <-- PARCHE IMPORTANTE
+                  setAddressInput(v);
+                }}
+                onSelect={(s) => handleAddressSelectFromAutocomplete(s, "pickup")}
+              />
+
+              <AddressAutocomplete
+                inputRef={destRef}
+                value={destinationInput}
+                disabled={selectedField !== "destination" || lockedUI}
+                placeholder="Escribe destino..."
+                hideSearchIcon={true}
+                onChange={(v) => {
+                  setSelectedField("destination");   // <-- PARCHE IMPORTANTE
+                  setDestinationInput(v);
+                }}
+                onSelect={(s) => handleAddressSelectFromAutocomplete(s, "destination")}
+              />
+            </div>
           </div>
 
-          <div className="max-w-4xl mx-auto">
-            <AddressAutocomplete
-              inputRef={selectedField === "pickup" ? pickupRef : destRef}
-              value={selectedField === "pickup" ? addressInput : destinationInput}
-              onChange={(v) => {
-                if (!selectedField) return;
-                if (selectedField === "pickup") setAddressInput(v);
-                else setDestinationInput(v);
-              }}
-              onSelect={(s: Suggestion) => {
-                // si el componente no notifica qué campo, usamos el seleccionado
-                handleAddressSelectFromAutocomplete(s);
-              }}
-              placeholder={selectedField === "pickup" ? "Escribe punto de recogida..." : "Escribe destino..."}
-              showToggle={true}
-              disabled={!selectedField || lockedUI}
-            />
-          </div>
-
-          <div className="mt-4 max-w-4xl mx-auto">
+<div className="mt-4 max-w-4xl mx-auto">
             <QuickPlaces onSelect={handleQuickPlaceSelect} disabled={!selectedField || lockedUI} />
           </div>
 

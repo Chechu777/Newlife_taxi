@@ -17,8 +17,7 @@ interface Props {
   inputRef?: RefObject<HTMLInputElement | null>;
   placeholder?: string;
   disabled?: boolean;
-  showToggle?: boolean;
-  // suppressOpen not required here; parent controls disabled
+  hideSearchIcon?: boolean; // <-- NUEVO
 }
 
 export default function AddressAutocomplete({
@@ -28,49 +27,14 @@ export default function AddressAutocomplete({
   inputRef,
   placeholder,
   disabled = false,
-  showToggle = true,
+  hideSearchIcon = false, // por defecto falso
 }: Props) {
-  const [suggestionsEnabled, setSuggestionsEnabled] = useState(true);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const idleTimer = useRef<number | null>(null);
 
-  // Format short address per your spec:
-  // "C. de Ezequiel Solana, 21, Cdad. Lineal, 28017 Madrid"
-  function formatShortFromNominatimItem(item: any) {
-    try {
-      const addr = item.address || {};
-      const house = addr.house_number || "";
-      const road = addr.road || addr.pedestrian || addr.cycleway || addr.footway || item.name || "";
-      const suburb = addr.suburb || addr.city_district || addr.neighbourhood || addr.village || "";
-      const city = addr.city || addr.town || addr.village || "Madrid";
-      const postcode = addr.postcode || "";
-
-      // street short
-      let streetShort = road;
-      if (streetShort) {
-        streetShort = streetShort.replace(/^Calle\s+de\s+/i, "").replace(/^Calle\s+/i, "");
-        streetShort = `C. de ${streetShort}`;
-      }
-
-      // district short: "Ciudad Lineal" -> "Cdad. Lineal"
-      let districtShort = suburb;
-      districtShort = districtShort.replace(/Ciudad\s+/i, "Cdad. ").replace(/CiudadLineal/i, "Cdad. Lineal");
-
-      const parts: string[] = [];
-      if (streetShort) parts.push(streetShort + (house ? `, ${house}` : ""));
-      if (districtShort) parts.push(districtShort);
-      if (postcode || city) parts.push(`${postcode ? postcode + " " : ""}${city}`);
-
-      return parts.join(", ").replace(/\s+,/g, ",").trim();
-    } catch {
-      return item.display_name || "";
-    }
-  }
-
   async function search(q: string) {
-    if (!suggestionsEnabled) return;
     if (q.length < 3) {
       setSuggestions([]);
       setOpen(false);
@@ -86,22 +50,34 @@ export default function AddressAutocomplete({
       )}&limit=8&addressdetails=1&accept-language=es`;
       const r = await fetch(url, { signal: controller.current.signal });
       const data = await r.json();
-      const mapped = (data || []).map((d: any) => ({
-        lat: parseFloat(d.lat),
-        lng: parseFloat(d.lon),
-        address: formatShortFromNominatimItem(d) || d.display_name || `${d.lat}, ${d.lon}`,
-        raw: d,
-      })) as Suggestion[];
+      const mapped = (data || []).map((d: any) => {
+        const addressObj = d.address || {};
+
+        return {
+          lat: parseFloat(d.lat),
+          lng: parseFloat(d.lon),
+
+          // address = display_name (cadena completa)
+          address: d.display_name || `${d.lat}, ${d.lon}`,
+
+          // raw = objeto completo (incluye d.address con street, city, etc.)
+          raw: {
+            display_name: d.display_name,
+            address: addressObj,
+            lat: d.lat,
+            lon: d.lon,
+          },
+        };
+      }) as Suggestion[];
 
       setSuggestions(mapped);
-      if (mapped.length > 0) setOpen(true);
-      else setOpen(false);
+      setOpen(mapped.length > 0);
 
-      // idle close timer 3s
+      // cerrar después de 3s
       if (idleTimer.current) window.clearTimeout(idleTimer.current);
       idleTimer.current = window.setTimeout(() => setOpen(false), 3000);
     } catch {
-      // ignore network errors
+      // ignore
     }
   }
 
@@ -117,10 +93,8 @@ export default function AddressAutocomplete({
       window.clearTimeout(t);
       if (controller.current) controller.current.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, suggestionsEnabled]);
+  }, [value]);
 
-  // reset idle timer on typing
   function handleInput(e: React.ChangeEvent<HTMLInputElement>) {
     onChange(e.target.value);
     if (idleTimer.current) {
@@ -130,37 +104,35 @@ export default function AddressAutocomplete({
   }
 
   function handleSelect(s: Suggestion) {
-    onSelect(s);
+    onSelect({
+      lat: s.lat,
+      lng: s.lng,
+      address: s.address,
+      raw: s.raw,
+    });
+
     setOpen(false);
     setSuggestions([]);
   }
 
   return (
     <div className="relative w-full">
-      <div className="flex items-center gap-2">
-        <input
-          ref={inputRef}
-          disabled={disabled}
-          value={value}
-          onChange={handleInput}
-          placeholder={placeholder}
-          className={`w-full border px-3 py-2 rounded text-slate-900 ${disabled ? "bg-gray-200 cursor-not-allowed" : "bg-white"}`}
-        />
+      <input
+        ref={inputRef}
+        disabled={disabled}
+        value={value}
+        onChange={handleInput}
+        placeholder={placeholder}
+        className={`w-full border px-3 py-2 rounded text-slate-900 ${disabled ? "bg-gray-200 cursor-not-allowed" : "bg-white"}`}
+      />
 
-        {showToggle && (
-          <button
-            disabled={disabled}
-            type="button"
-            onClick={() => setSuggestionsEnabled((v) => !v)}
-            className={`px-3 py-2 rounded text-white ${suggestionsEnabled ? "bg-emerald-600" : "bg-gray-400"}`}
-            title={suggestionsEnabled ? "Sugerencias ON" : "Sugerencias OFF"}
-          >
-            🔍
-          </button>
-        )}
-      </div>
+      {!hideSearchIcon && (
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
+          🔍
+        </span>
+      )}
 
-      {open && suggestions.length > 0 && !disabled && suggestionsEnabled && (
+      {open && suggestions.length > 0 && !disabled && (
         <div className="absolute z-50 w-full bg-white text-black shadow border rounded mt-1 max-h-64 overflow-y-auto">
           {suggestions.map((s, i) => (
             <div
