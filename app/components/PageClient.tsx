@@ -119,14 +119,50 @@ export default function PageClient() {
 
   const [selectedField, setSelectedField] = useState<"pickup" | "destination" | null>("pickup");
   const [lockedUI, setLockedUI] = useState(false);
+  const [destinationLocked, setDestinationLocked] = useState(false);
 
   // ref al map (métodos expuestos por MapComponent)
   const mapRef = useRef<MapHandle | null>(null);
   const pickupRef = useRef<HTMLInputElement | null>(null);
   const destRef = useRef<HTMLInputElement | null>(null);
+  // Reutilizable para auto-rellenar pickup desde geolocalización
+  const fillPickupWithGeolocation = () => {
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return; 
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+
+        try {
+          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=es`);
+          const json = await r.json();
+          const longAddr = json.display_name || "";
+          const formatted = formatShortAddress(longAddr || `${lat}, ${lng}`);
+
+          setPickup({ lat, lng, address: formatted });
+          setAddressInput(formatted);
+          setSelectedField("pickup");
+          setLockedUI(false);
+
+          setTimeout(() => mapRef.current?.fitMarkers?.(), 150);
+        } catch (err) {
+          setPickup({ lat, lng, address: `${lat}, ${lng}` });
+          setAddressInput(`${lat}, ${lng}`);
+          setTimeout(() => mapRef.current?.fitMarkers?.(), 150);
+        }
+      },
+      (err) => console.warn("Geolocation denied or failed", err),
+      { maximumAge: 60_000, timeout: 7000, enableHighAccuracy: true }
+    );
+  };
 
   // init fecha actual
   useEffect(() => {
+    setSelectedField("pickup");     // activar botón
+    setLockedUI(false);             // asegurar que no esté bloqueado
+    pickupRef.current?.focus();     // enfocar input
+    fillPickupWithGeolocation();    // usar la misma función que ya tienes
     const now = new Date();
     setDate(now.toISOString().split("T")[0]);
   }, []);
@@ -142,16 +178,31 @@ export default function PageClient() {
   }
 
   function formatWhatsAppMessage(addr: string, dest: string, dt: string, tm: string, ex: string) {
+    const pickupMap =
+      pickup?.lat && pickup?.lng
+        ? `https://www.google.com/maps/search/?api=1&query=${pickup.lat},${pickup.lng}`
+        : "";
+
+    const destinationMap =
+      destination?.lat && destination?.lng
+        ? `https://www.google.com/maps/search/?api=1&query=${destination.lat},${destination.lng}`
+        : "";
+
     return (
       `Buen día Pablo,\n` +
       `Quiero reservar un viaje.\n\n` +
-      `Recogida: ${addr || "-----"}\n` +
-      `Destino: ${dest || "-----"}\n` +
-      `Fecha: ${dt || "-----"}\n` +
-      `Hora: ${tm || "-----"}\n` +
-      `Extras: ${ex || "Ninguno"}\n\n` +
-      (routeKm != null ? `Distancia estimada: ${routeKm.toFixed(1)} km\nDuración aprox.: ${routeMin?.toFixed(0)} min\n\n` : "") +
-      (pickup ? buildMapsLink(pickup.lat, pickup.lng) : "")
+      `📍 RECOGIDA\n` +
+      `${addr || "-----"}\n` +
+      `${pickupMap}\n\n` +
+      `🎯 DESTINO\n` +
+      `${dest || "-----"}\n` +
+      `${destinationMap}\n\n` +
+      `📅 Fecha: ${dt || "-----"}\n` +
+      `🕠 Hora: ${tm || "-----"}\n` +
+      (routeKm != null
+        ? `📏 Distancia estimada: ${routeKm.toFixed(1)} km\n⏱️ Duración aprox.: ${routeMin?.toFixed(0)} min\n\n`
+        : "") +
+      `Extras: ${ex || "Ninguno"}`
     );
   }
 
@@ -263,88 +314,41 @@ export default function PageClient() {
 
 
   // ---------------------------
-  // AUTO-GEOLOCALIZACIÓN al cargar: pedir permiso, rellenar pickup y centrar mapa con punto azul + halo
-  useEffect(() => {
-    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return; 
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-
-        try {
-          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=es`);
-          const json = await r.json();
-          const longAddr = json.display_name || "";
-          const formatted = formatShortAddress(longAddr || `${lat}, ${lng}`);
-
-          // set pickup & input
-          setPickup({ lat, lng, address: formatted });
-          setTimeout(() => {try {mapRef.current?.fitMarkers?.();} catch {}
-          }, 150);
-          setAddressInput(formatted);
-          setSelectedField("pickup");
-          setLockedUI(false);
-
-          // pedir al map que haga zoom y centro suave
-          setTimeout(() => {
-            try {
-              mapRef.current?.fitMarkers?.();
-            } catch {}
-          }, 300);
-        } catch (err) {
-          // fallback simple
-          setPickup({ lat, lng, address: `${lat}, ${lng}` });
-          setTimeout(() => {try {mapRef.current?.fitMarkers?.();} catch {}
-          }, 150);
-          setAddressInput(`${lat}, ${lng}`);
-        }
-      },
-      (err) => {
-        // denied o timeout -> no hacemos nada, conservar estado
-        console.warn("Geolocation denied or failed", err);
-      },
-      { maximumAge: 60_000, timeout: 7000, enableHighAccuracy: true }
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Cuando ambos puntos existen -> lock map, quitar selección y pedir fitMarkers
-  // AUTO-ZOOM cuando pickup + destino están definidos
-  useEffect(() => {
+    useEffect(() => {
     const pickupValid =
       pickup && typeof pickup.lat === "number" && typeof pickup.lng === "number";
     const destValid =
       destination && typeof destination.lat === "number" &&
       typeof destination.lng === "number";
 
+    // Si ambos son válidos, solo ajustamos el mapa,
+    // pero ya NO bloqueamos inputs ni limpiamos selectedField.
     if (pickupValid && destValid) {
-      // se bloquea input pero NO el movimiento del mapa durante el fitBounds
-      setSelectedField(null);
-      setLockedUI(true);
-
-      // pedir al map que haga fitBounds suave
       setTimeout(() => {
         try {
           mapRef.current?.fitMarkers?.();
         } catch {}
       }, 150);
-
-      return;
     }
 
-    // si falta algún punto -> desbloquear UI
+    // La UI SIEMPRE queda desbloqueada
     setLockedUI(false);
   }, [pickup, destination]);
+
 
   // toggle select field (pickup/destination)
   function toggleSelectField(field: "pickup" | "destination") {
     if (selectedField === field) {
+      // si ya está seleccionado → deselecciona y bloquea input
       setSelectedField(null);
+      setLockedUI(true);
       return;
     }
+
+    // si no estaba seleccionado → selecciona y habilita input
     setSelectedField(field);
     setLockedUI(false);
+
     setTimeout(() => {
       if (field === "pickup") pickupRef.current?.focus();
       else destRef.current?.focus();
@@ -402,24 +406,25 @@ export default function PageClient() {
   // QuickPlaces selection
   function handleQuickPlaceSelect(coords: { lat: number; lng: number; address?: string }) {
     const formatted = coords.address ? formatShortAddress(coords.address) : coords.address || `${coords.lat}, ${coords.lng}`;
+
     if (selectedField === "destination") {
       setDestination({ lat: coords.lat, lng: coords.lng, address: formatted });
       setDestinationInput(formatted);
+
+      // Deselecciona el botón destino automáticamente
+      setSelectedField(null);
+      setLockedUI(false);
     } else {
       // default pickup
       setPickup({ lat: coords.lat, lng: coords.lng, address: formatted });
-      setTimeout(() => {try {mapRef.current?.fitMarkers?.();} catch {}
-      }, 150);
       setAddressInput(formatted);
+      setTimeout(() => { try { mapRef.current?.fitMarkers?.(); } catch {} }, 150);
     }
 
-    // after quick place, fit if both set (effect above will handle lock + fit)
-    setTimeout(() => {
-      try {
-        mapRef.current?.fitMarkers?.();
-      } catch {}
-    }, 200);
+    // Ajustar zoom si ambos están definidos
+    setTimeout(() => { try { mapRef.current?.fitMarkers?.(); } catch {} }, 200);
   }
+
 
   function handleAddressSelectFromAutocomplete(selected: any, field: "pickup" | "destination") {
     if (!selected) return;
@@ -513,10 +518,18 @@ export default function PageClient() {
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => { setSelectedField("pickup"); setLockedUI(false); pickupRef.current?.focus(); }}
-                className={`flex items-center justify-center w-12 h-12 rounded-lg text-lg font-semibold ${selectedField === "pickup" ? "bg-emerald-600 text-white" : "bg-slate-300 text-slate-800"}`}
-                aria-label="Seleccionar recogida"
-                title="Seleccionar recogida"
+                onClick={() => {
+                  const wasSelected = selectedField === "pickup";
+                  toggleSelectField("pickup");
+                  
+                  // si se acaba de activar → autocompletar con geo
+                  if (!wasSelected) {
+                    fillPickupWithGeolocation();
+                  }
+                }}
+                className={`flex items-center justify-center w-12 h-12 rounded-lg text-lg font-semibold ${
+                  selectedField === "pickup" ? "bg-emerald-600 text-white" : "bg-slate-300 text-slate-800"
+                }`}
               >
                 📍
               </button>
@@ -525,28 +538,40 @@ export default function PageClient() {
                 <AddressAutocomplete
                   inputRef={pickupRef}
                   value={addressInput}
-                  disabled={selectedField !== "pickup" || lockedUI}
+                  //disabled={selectedField !== "pickup" || lockedUI}
+                  disabled={selectedField !== "pickup"}
                   placeholder="Escribe punto de recogida..."
                   hideSearchIcon={true}
                   onChange={(v) => {
-                    setSelectedField("pickup");
-                    setAddressInput(v);
+                    if (selectedField === "pickup") {
+                      setAddressInput(v);
+                    }
                   }}
+
                   onSelect={(s) => handleAddressSelectFromAutocomplete(s, "pickup")}
                 />
               </div>
             </div>
-
             {/* fila: Destino */}
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => { setSelectedField("destination"); setLockedUI(false); destRef.current?.focus(); }}
-                className={`flex items-center justify-center w-12 h-12 rounded-lg text-lg font-semibold ${selectedField === "destination" ? "bg-emerald-600 text-white" : "bg-slate-300 text-slate-800"}`}
+                onClick={() => {
+                  // toggle manual
+                  if (selectedField === "destination") {
+                    setSelectedField(null);
+                  } else {
+                    setSelectedField("destination");
+                    setLockedUI(false);
+                    destRef.current?.focus();
+                  }
+                }}
+                className={`flex items-center justify-center w-12 h-12 rounded-lg text-lg font-semibold ${
+                  selectedField === "destination" ? "bg-emerald-600 text-white" : "bg-slate-300 text-slate-800"
+                }`}
                 aria-label="Seleccionar destino"
                 title="Seleccionar destino"
               >
-                {/* usa la misma imagen que en el mapa */}
                 <img src="/marker-icon-2x.png" alt="Destino" className="w-6 h-6" />
               </button>
 
@@ -558,10 +583,16 @@ export default function PageClient() {
                   placeholder="Escribe destino..."
                   hideSearchIcon={true}
                   onChange={(v) => {
+                    // si el usuario escribe manualmente → selecciona el campo
                     setSelectedField("destination");
                     setDestinationInput(v);
                   }}
-                  onSelect={(s) => handleAddressSelectFromAutocomplete(s, "destination")}
+                  onSelect={(s) => {
+                    handleAddressSelectFromAutocomplete(s, "destination");
+                    // deselecciona automáticamente el botón tras seleccionar una sugerencia válida
+                    setSelectedField(null);
+                    setLockedUI(false); // seguir permitiendo volver a seleccionar manualmente
+                  }}
                 />
               </div>
             </div>
