@@ -13,7 +13,7 @@
     "leaflet": "^1.9.4",
     "leaflet-routing-machine": "^3.2.12",
     "mapbox-gl": "^3.16.0",
-    "next": "16.0.3",
+    "next": "^16.0.7",
     "qrcode": "^1.5.4",
     "react": "19.2.0",
     "react-dom": "19.2.0",
