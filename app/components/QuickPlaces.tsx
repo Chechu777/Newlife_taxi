@@ -59,7 +59,7 @@ export default function QuickPlaces({ onSelect, disabled = false, initialOpen = 
         className={`w-full flex justify-between items-center px-4 py-3 rounded bg-white text-black font-semibold shadow
           ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
       >
-        Ubicaciones rápidas
+        Destinos ✈️ 🚆 🚌 🏛️ 🛍️
         <span>{open ? "▲" : "▼"}</span>
       </button>
 

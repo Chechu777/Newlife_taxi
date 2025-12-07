@@ -176,7 +176,6 @@ export default function PageClient() {
     if (!lat || !lng) return "";
     return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
   }
-
   function formatWhatsAppMessage(addr: string, dest: string, dt: string, tm: string, ex: string) {
     const pickupMap =
       pickup?.lat && pickup?.lng
@@ -199,9 +198,10 @@ export default function PageClient() {
       `${destinationMap}\n\n` +
       `📅 Fecha: ${dt || "-----"}\n` +
       `🕠 Hora: ${tm || "-----"}\n` +
-      (routeKm != null
-        ? `📏 Distancia estimada: ${routeKm.toFixed(1)} km\n⏱️ Duración aprox.: ${routeMin?.toFixed(0)} min\n\n`
-        : "") +
+      (routeKm != null && routeMin != null
+        ? `📏 Distancia estimada: ${routeKm.toFixed(1)} km\n` +
+          `⏱️ Duración aprox.: ${routeMin.toFixed(0)} min\n\n`
+        : `\n`) +
       `Extras: ${ex || "Ninguno"}`
     );
   }
@@ -515,30 +515,33 @@ export default function PageClient() {
           <div className="max-w-4xl mx-auto flex flex-col gap-4 mb-6">
 
             {/* fila: Recogida */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 relative">
               <button
                 type="button"
                 onClick={() => {
                   const wasSelected = selectedField === "pickup";
                   toggleSelectField("pickup");
-                  
-                  // si se acaba de activar → autocompletar con geo
+
                   if (!wasSelected) {
                     fillPickupWithGeolocation();
                   }
                 }}
                 className={`flex items-center justify-center w-12 h-12 rounded-lg text-lg font-semibold ${
-                  selectedField === "pickup" ? "bg-emerald-600 text-white" : "bg-slate-300 text-slate-800"
+                  selectedField === "pickup"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-slate-300 text-slate-800"
                 }`}
               >
                 📍
               </button>
 
-              <div className="flex-1">
+              {/* CONTENEDOR PARA EL INPUT + EL BOTÓN AZUL */}
+              <div className="flex-1 relative">
+
+                {/* === EL INPUT ORIGINAL === */}
                 <AddressAutocomplete
                   inputRef={pickupRef}
                   value={addressInput}
-                  //disabled={selectedField !== "pickup" || lockedUI}
                   disabled={selectedField !== "pickup"}
                   placeholder="Escribe punto de recogida..."
                   hideSearchIcon={true}
@@ -547,11 +550,12 @@ export default function PageClient() {
                       setAddressInput(v);
                     }
                   }}
-
                   onSelect={(s) => handleAddressSelectFromAutocomplete(s, "pickup")}
                 />
+
               </div>
             </div>
+
             {/* fila: Destino */}
             <div className="flex items-center gap-3">
               <button
