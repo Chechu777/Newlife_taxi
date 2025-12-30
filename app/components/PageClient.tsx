@@ -16,6 +16,8 @@ import "yet-another-react-lightbox/plugins/thumbnails.css";
 import AddressAutocomplete, { Suggestion } from "./AddressAutocomplete";
 import QuickPlaces from "./QuickPlaces";
 
+const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
 // PhotoGallery embebido (fallback simple para que veas fotos y el desplegable "Más fotos")
 function PhotoGallery({
   main = "/Taxi.jpg",
@@ -86,18 +88,41 @@ function PhotoGallery({
     </div>
   );
 }
+# ==================================
+useEffect(() => {const handler = (e: any) => {e.preventDefault(); setDeferredPrompt(e);};
+  window.addEventListener("beforeinstallprompt", handler);
+  return () => window.removeEventListener("beforeinstallprompt", handler);
+}, []);
 
+function handleAddShortcut() {if (!deferredPrompt) return; deferredPrompt.prompt(); deferredPrompt.userChoice.finally(() => {setDeferredPrompt(null);});}
+
+function handleAddContact() {
+  const vcard = `
+BEGIN:VCARD
+VERSION:3.0
+FN:Taxi Premium
+ORG:NewLife Taxi
+TEL;TYPE=CELL:+34640796659
+URL:https://newlife-taxi.vercel.app/
+END:VCARD
+`.trim();
+
+  const blob = new Blob([vcard], { type: "text/vcard" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "Taxi_Premium.vcf";
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+# ==================================
 // MapComponent import dinámico (debes usar ssr:false)
 const MapComponent = dynamic(() => import("./MapComponent"), { ssr: false,  loading: () => <div className="w-full h-64 bg-gray-200 animate-pulse rounded" />});
 
 // Define la interfaz mínima que esperamos del Map ref (fitMarkers, lock, unlock)
-export type MapHandle = {
-  fitMarkers?: () => void;
-  lock?: () => void;
-  unlock?: () => void;
-  moveTo?: (lat: number, lng: number) => void; 
-};
-
+export type MapHandle = {fitMarkers?: () => void; lock?: () => void; unlock?: () => void; moveTo?: (lat: number, lng: number) => void; };
 const WHATSAPP_NUMBER = "+34640796659";
 
 export default function PageClient() {
@@ -477,7 +502,24 @@ export default function PageClient() {
         <h1 className="text-3xl md:text-4xl font-bold">✨ NewLife Taxi</h1>
         <p className="text-slate-300 mt-1">Traslados privados de lujo en Madrid</p>
       </header>
+  #===================
+      <div className="flex justify-between items-center mt-4 gap-3 text-sm">
+        <button
+          onClick={handleAddShortcut}
+          disabled={!deferredPrompt}
+          className="bg-emerald-600 text-white px-3 py-2 rounded disabled:opacity-40"
+        >
+          ➕ Agregar acceso directo
+        </button>
 
+        <button
+          onClick={handleAddContact}
+          className="bg-slate-700 text-white px-3 py-2 rounded"
+        >
+          📇 Agregar contacto
+        </button>
+      </div>
+  #===================
       <main className="max-w-6xl mx-auto px-4 pb-16">
         {/* SECCIÓN 1 */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
@@ -669,6 +711,22 @@ export default function PageClient() {
           </div>
         </section>
       </main>
+      <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
+        <button
+          onClick={handleAddShortcut}
+          disabled={!deferredPrompt}
+          className="bg-emerald-600 text-white px-5 py-3 rounded-full font-semibold disabled:opacity-40"
+        >
+          ➕ Añadir acceso directo
+        </button>
+
+        <button
+          onClick={handleAddContact}
+          className="bg-slate-700 text-white px-5 py-3 rounded-full font-semibold"
+        >
+          📇 Guardar Taxi Premium
+        </button>
+      </div>
 
       <footer className="max-w-6xl mx-auto px-4 py-8 text-sm text-slate-400 text-center">© NewLife Taxi — Madrid • Tel: +34 640 796 659</footer>
     </div>
