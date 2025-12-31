@@ -16,8 +16,6 @@ import "yet-another-react-lightbox/plugins/thumbnails.css";
 import AddressAutocomplete, { Suggestion } from "./AddressAutocomplete";
 import QuickPlaces from "./QuickPlaces";
 
-const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-
 // PhotoGallery embebido (fallback simple para que veas fotos y el desplegable "Más fotos")
 function PhotoGallery({
   main = "/Taxi.jpg",
@@ -88,16 +86,43 @@ function PhotoGallery({
     </div>
   );
 }
-# ==================================
-useEffect(() => {const handler = (e: any) => {e.preventDefault(); setDeferredPrompt(e);};
-  window.addEventListener("beforeinstallprompt", handler);
-  return () => window.removeEventListener("beforeinstallprompt", handler);
-}, []);
 
-function handleAddShortcut() {if (!deferredPrompt) return; deferredPrompt.prompt(); deferredPrompt.userChoice.finally(() => {setDeferredPrompt(null);});}
+// MapComponent import dinámico (debes usar ssr:false)
+const MapComponent = dynamic(() => import("./MapComponent"), { ssr: false,  loading: () => <div className="w-full h-64 bg-gray-200 animate-pulse rounded" />});
 
-function handleAddContact() {
-  const vcard = `
+// Define la interfaz mínima que esperamos del Map ref (fitMarkers, lock, unlock)
+export type MapHandle = {
+  fitMarkers?: () => void;
+  lock?: () => void;
+  unlock?: () => void;
+  moveTo?: (lat: number, lng: number) => void; 
+};
+
+const WHATSAPP_NUMBER = "+34640796659";
+
+export default function PageClient() {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  function handleAddShortcut() {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.finally(() => {
+      setDeferredPrompt(null);
+    });
+  }
+
+  function handleAddContact() {
+    const vcard = `
 BEGIN:VCARD
 VERSION:3.0
 FN:Taxi Premium
@@ -107,25 +132,16 @@ URL:https://newlife-taxi.vercel.app/
 END:VCARD
 `.trim();
 
-  const blob = new Blob([vcard], { type: "text/vcard" });
-  const url = URL.createObjectURL(blob);
+    const blob = new Blob([vcard], { type: "text/vcard" });
+    const url = URL.createObjectURL(blob);
 
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "Taxi_Premium.vcf";
-  a.click();
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "Taxi_Premium.vcf";
+    a.click();
 
-  URL.revokeObjectURL(url);
-}
-# ==================================
-// MapComponent import dinámico (debes usar ssr:false)
-const MapComponent = dynamic(() => import("./MapComponent"), { ssr: false,  loading: () => <div className="w-full h-64 bg-gray-200 animate-pulse rounded" />});
-
-// Define la interfaz mínima que esperamos del Map ref (fitMarkers, lock, unlock)
-export type MapHandle = {fitMarkers?: () => void; lock?: () => void; unlock?: () => void; moveTo?: (lat: number, lng: number) => void; };
-const WHATSAPP_NUMBER = "+34640796659";
-
-export default function PageClient() {
+    URL.revokeObjectURL(url);
+  }
   // estado local
   type LatLngObj = { lat: number; lng: number; address?: string };
   const [pickup, setPickup] = useState<LatLngObj | null>(null);
@@ -501,25 +517,26 @@ export default function PageClient() {
       <header className="max-w-6xl mx-auto px-4 py-6 text-center">
         <h1 className="text-3xl md:text-4xl font-bold">✨ NewLife Taxi</h1>
         <p className="text-slate-300 mt-1">Traslados privados de lujo en Madrid</p>
-      </header>
-  #===================
-      <div className="flex justify-between items-center mt-4 gap-3 text-sm">
-        <button
-          onClick={handleAddShortcut}
-          disabled={!deferredPrompt}
-          className="bg-emerald-600 text-white px-3 py-2 rounded disabled:opacity-40"
-        >
-          ➕ Agregar acceso directo
-        </button>
 
-        <button
-          onClick={handleAddContact}
-          className="bg-slate-700 text-white px-3 py-2 rounded"
-        >
-          📇 Agregar contacto
-        </button>
-      </div>
-  #===================
+        {/* Acciones rápidas */}
+        <div className="flex justify-center mt-4 gap-3 text-sm">
+          <button
+            onClick={handleAddShortcut}
+            disabled={!deferredPrompt}
+            className="bg-emerald-900 text-white px-3 py-2 rounded disabled:opacity-60"
+          >
+            ➕ Agregar acceso directo
+          </button>
+
+          <button
+            onClick={handleAddContact}
+            className="bg-slate-700 text-white px-3 py-2 rounded"
+          >
+            📇 Agregar contacto
+          </button>
+        </div>
+      </header>
+
       <main className="max-w-6xl mx-auto px-4 pb-16">
         {/* SECCIÓN 1 */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
@@ -715,7 +732,7 @@ export default function PageClient() {
         <button
           onClick={handleAddShortcut}
           disabled={!deferredPrompt}
-          className="bg-emerald-600 text-white px-5 py-3 rounded-full font-semibold disabled:opacity-40"
+          className="bg-emerald-900 text-white px-5 py-3 rounded-full font-semibold disabled:opacity-40"
         >
           ➕ Añadir acceso directo
         </button>
@@ -727,7 +744,6 @@ export default function PageClient() {
           📇 Guardar Taxi Premium
         </button>
       </div>
-
       <footer className="max-w-6xl mx-auto px-4 py-8 text-sm text-slate-400 text-center">© NewLife Taxi — Madrid • Tel: +34 640 796 659</footer>
     </div>
   );
